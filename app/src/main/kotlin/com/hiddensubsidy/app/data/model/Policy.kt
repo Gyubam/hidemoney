@@ -7,8 +7,8 @@ data class Policy(
     val id: String,
     val title: String,
     val amount: Long,                  // 원 단위
-    val deadline: String,              // ISO yyyy-MM-dd
-    val daysLeft: Int,
+    val deadline: String = "",         // ISO yyyy-MM-dd. list-only 풀빌드는 빈 값.
+    val daysLeft: Int = 0,             // deadline 없으면 0. UI는 deadline.isNotBlank()로 분기
     val category: String,              // 청년·주거·창업 등
     val summary: String,
     val region: String? = null,

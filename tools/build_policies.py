@@ -193,7 +193,7 @@ def run(
         if list_only:
             raws = fetch_list_only(gov_client, limit=effective_limit, user_type=user_type)
         else:
-            raws = fetch_policies(gov_client, limit=effective_limit or 30, user_type=user_type)
+            raws = fetch_policies(gov_client, limit=effective_limit, user_type=user_type)
         log.info("Fetched %d raw policies — normalizing", len(raws))
         new_policies = normalize_all(raws, llm_client=llm_client)
         fetched_count = len(new_policies)

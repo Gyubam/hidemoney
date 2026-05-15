@@ -185,6 +185,74 @@ def _gather_text(*sources: Optional[str]) -> str:
 
 
 # ────────────────────────────────────────────────────────────────────────────────
+# 결정론 4 — 신청기한 파싱 (LLM 없이)
+# ────────────────────────────────────────────────────────────────────────────────
+
+
+_DATE_PATTERN = re.compile(r"(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})")
+_ALWAYS_OPEN_KEYWORDS = ("상시", "수시", "연중", "예산소진", "예산 소진", "공고기간", "공고 기간")
+
+
+def parse_deadline(text: Optional[str]) -> str:
+    """신청기한 raw text → ISO yyyy-MM-dd. 추출 실패 또는 상시면 빈 문자열.
+
+    여러 날짜가 있으면 가장 늦은 날짜 선택 (기간 표기의 종료일).
+    """
+    if not text:
+        return ""
+    s = str(text)
+    # 상시/수시류는 빈 문자열로 (UI에서 deadline 섹션 제외)
+    s_compact = s.replace(" ", "")
+    if any(k.replace(" ", "") in s_compact for k in _ALWAYS_OPEN_KEYWORDS):
+        return ""
+    latest: Optional[str] = None
+    for m in _DATE_PATTERN.finditer(s):
+        try:
+            y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if 1 <= mo <= 12 and 1 <= d <= 31:
+                iso = f"{y:04d}-{mo:02d}-{d:02d}"
+                if latest is None or iso > latest:
+                    latest = iso
+        except ValueError:
+            continue
+    return latest or ""
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# 결정론 5 — 자유 텍스트 → 항목 리스트 (eligibility / procedure / documents)
+# ────────────────────────────────────────────────────────────────────────────────
+
+
+# 줄바꿈, 글머리표, 번호 등으로 분리
+_SPLIT_PATTERN = re.compile(r"[\n\r]+|[○●•◦◾◽■□▪▫·]|(?<=[\s가-힣\)])(?=\d{1,2}[\.\)])|①|②|③|④|⑤|⑥|⑦|⑧|⑨|⑩")
+
+
+def split_to_items(text: Optional[str], *, max_items: int = 8, max_len: int = 80) -> List[str]:
+    """자유 텍스트를 항목 리스트로. 너무 짧거나 긴 건 필터."""
+    if not text:
+        return []
+    parts = _SPLIT_PATTERN.split(str(text))
+    out: List[str] = []
+    seen: set = set()
+    for p in parts:
+        if p is None:
+            continue
+        # 번호 접두 제거 (1. / 1) / 1- 등)
+        t = re.sub(r"^\s*\d{1,2}[\.\)\-]\s*", "", p).strip()
+        # 한쪽 괄호만 남은 거 정리
+        t = t.strip(" .,;:")
+        if not t or len(t) < 3 or len(t) > max_len:
+            continue
+        if t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+        if len(out) >= max_items:
+            break
+    return out
+
+
+# ────────────────────────────────────────────────────────────────────────────────
 # LLM 단계 — 두 작업으로 분리 (한 번에 5필드 추출하면 모델이 압도됨)
 # ────────────────────────────────────────────────────────────────────────────────
 
@@ -340,16 +408,33 @@ def normalize(
     detail = raw.detail or {}
 
     # ── 결정론 단계 — 정부 데이터 직매핑
+    deadline_raw = detail.get("신청기한") or list_row.get("신청기한") or ""
+    target_raw = detail.get("지원대상") or list_row.get("지원대상") or ""
+    criteria_raw = detail.get("선정기준") or list_row.get("선정기준") or ""
+    procedure_raw = detail.get("신청방법") or list_row.get("신청방법") or ""
+    documents_raw = detail.get("구비서류") or ""
+
+    # eligibility: 지원대상 + 선정기준 합쳐서 항목화
+    eligibility_items = split_to_items(target_raw, max_items=4)
+    if len(eligibility_items) < 4:
+        eligibility_items += split_to_items(criteria_raw, max_items=4 - len(eligibility_items))
+
+    # documents: 구비서류 항목화 (detail 있을 때만 채워짐)
+    document_items = [
+        {"name": d} for d in split_to_items(documents_raw, max_items=10, max_len=40)
+    ]
+
     policy: Dict[str, Any] = {
         "id": _slugify(raw.service_id),
         "title": str(list_row.get("서비스명") or detail.get("서비스명") or "").strip(),
         "amount": 0,
+        "deadline": parse_deadline(deadline_raw),
         "category": category_from_field(list_row.get("서비스분야")),
         "summary": str(detail.get("서비스목적") or list_row.get("서비스목적요약") or "").strip(),
         "period": "",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
+        "eligibility": eligibility_items,
+        "documents": document_items,
+        "procedure": split_to_items(procedure_raw, max_items=6, max_len=60),
         "applicationOrg": str(list_row.get("소관기관명") or detail.get("접수기관명") or "").strip(),
         "applicationUrl": str(detail.get("온라인신청사이트URL") or list_row.get("상세조회URL") or "").strip(),
     }
@@ -388,14 +473,19 @@ def normalize(
             policy["amount"] = int(am)
 
     # ── LLM 단계 2: eligibility + documents + procedure 추출
+    # 결정론으로 이미 채워둔 값을 LLM 빈 결과로 덮어쓰지 않음 — LLM 더 좋은 결과만 채택.
     if llm_client is not None:
         i_out = _llm_items(raw, client=llm_client)
         elig = i_out.get("eligibility")
         if isinstance(elig, list):
-            policy["eligibility"] = [str(x).strip() for x in elig if str(x).strip()][:6]
+            cleaned_elig = [str(x).strip() for x in elig if str(x).strip()][:6]
+            if cleaned_elig:
+                policy["eligibility"] = cleaned_elig
         proc = i_out.get("procedure")
         if isinstance(proc, list):
-            policy["procedure"] = [str(x).strip() for x in proc if str(x).strip()][:8]
+            cleaned_proc = [str(x).strip() for x in proc if str(x).strip()][:8]
+            if cleaned_proc:
+                policy["procedure"] = cleaned_proc
         docs = i_out.get("documents")
         if isinstance(docs, list):
             cleaned: List[Dict[str, Any]] = []
@@ -407,7 +497,8 @@ def normalize(
                     cleaned.append(item)
                 elif isinstance(d, str) and d.strip():
                     cleaned.append({"name": d.strip()})
-            policy["documents"] = cleaned[:10]
+            if cleaned:
+                policy["documents"] = cleaned[:10]
 
     # category 정합성 — OUR_CATEGORIES에 없으면 빈 문자열 (방어)
     if policy.get("category") and policy["category"] not in OUR_CATEGORIES:

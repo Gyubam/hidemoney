@@ -47,7 +47,7 @@ class RawPolicy:
 
 class GovApiClient:
     BASE_URL = "https://api.odcloud.kr/api"
-    REQUEST_GAP_SEC = 0.3
+    REQUEST_GAP_SEC = 0.15
 
     def __init__(
         self,
@@ -253,7 +253,7 @@ def fetch_list_only(
 def fetch_policies(
     client: GovApiClient,
     *,
-    limit: int = 30,
+    limit: Optional[int] = None,
     per_page: int = 50,
     user_type: Optional[str] = None,
 ) -> List[RawPolicy]:
@@ -281,7 +281,8 @@ def fetch_policies(
             log.warning("skip %s — fetch_full failed: %s", svc_id, e)
             continue
         raws.append(raw)
-        log.info("fetched %d/%d — %s (%s)", len(raws), limit, row.get("서비스명"), svc_id)
+        total_label = str(limit) if limit is not None else "ALL"
+        log.info("fetched %d/%s — %s (%s)", len(raws), total_label, row.get("서비스명"), svc_id)
     return raws
 
 

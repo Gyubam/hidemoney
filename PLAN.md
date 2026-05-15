@@ -1576,3 +1576,61 @@ keytool -genkey -v -keystore hidemoney-release.jks `
   - 사용자 부담: Run workflow 1회 클릭 또는 채팅 한 줄
   - LLM 호출은 quota 안전권에서 100개 단위 처리
 
+### 2026-05-16 (집 PC — list-only 풀빌드 결과 진단 + detail 풀빌드 준비)
+
+**상황**: 어제 list-only 풀빌드로 `docs/policies.json`에 9,919개 들어옴. 폰 설치 후 홈 화면 확인 — 그러나 **여전히 하드코딩 샘플 그대로 표시됨** (당신이 놓친 돈 2,400,000원 / 청년 월세 지원 / 출산장려금).
+
+**원인 진단** (2단계):
+
+1. **MainActivity가 `SampleData.home` 그대로 사용** (MainActivity.kt:149-161):
+   - `allPolicies` 9,919개는 calendar/detail/favorites 용도로만 쓰임
+   - 홈 집계(missedTotal/thisWeek/deadlineSoon)는 하드코딩
+   - → MainActivity 홈 집계를 `allPolicies` 기반으로 전환 필요 (Task #4, detail 받은 후)
+
+2. **9,919개 데이터가 너무 빈약** — 필드 채움 현황:
+   - title / category / summary / applicationUrl: 100%
+   - amount: 42% (4,191건만)
+   - **deadline / eligibility / documents / procedure / region / eligibilityRule: 0%**
+   - 원인: `normalize.py`가 LLM 없으면 list_row의 신청기한/지원대상/신청방법 등을 안 활용. LLM이 채우는 코드만 있었음.
+
+**정부 API 응답 스키마 정리** (사용자 공유):
+- `serviceList` (list_row): 서비스ID/지원유형/서비스명/서비스목적요약/**지원대상/선정기준/지원내용/신청방법/신청기한**/상세조회URL/소관기관코드/소관기관명/부서명/조회수/소관기관유형/사용자구분/서비스분야/접수기관/전화문의/등록일시/수정일시
+- `serviceDetail`: 위 + 서비스목적/**구비서류**/접수기관명/문의처/**온라인신청사이트URL**/행정규칙/자치법규/법령/공무원확인구비서류/본인확인필요구비서류
+- `supportConditions`: **JA0xxx 코드** (연령/지역/직업/가족형태/학력/기타)
+- → list_row만으로도 deadline + eligibility + procedure 추출 가능. **구비서류는 detail에서만**, **eligibilityRule(JA0xxx)는 supportConditions에서만**.
+
+**일일 호출 한도 확인**: data.go.kr 일일 한도 **500,000콜**. 9,919 × 3엔드포인트 = 29,757콜 = 한도의 6%. 풀빌드 1회 여유 충분.
+
+**오늘 변경 (R2.9.1 — normalize 결정론 보강 + detail 풀빌드 준비)**:
+
+| 파일 | 변경 |
+|---|---|
+| `tools/normalize.py` | `parse_deadline()` 추가 — list_row.신청기한 → ISO yyyy-MM-dd 추출 ("상시"/"수시"/"예산소진"은 빈 값). `split_to_items()` 추가 — 줄바꿈/글머리표/번호로 자유 텍스트 항목화. 결정론 단계에서 deadline + eligibility(지원대상+선정기준) + procedure(신청방법) + documents(구비서류) 채움. LLM 단계는 빈 리스트로 결정론 결과 덮어쓰지 않게 fix |
+| `tools/build_policies.py` | `--limit 0` + list-only off 조합 시 30개 제한 버그 fix (`fetch_policies(limit=effective_limit or 30)` → `fetch_policies(limit=effective_limit)`) |
+| `tools/crawl.py` | `fetch_policies(limit: Optional[int] = None)` 시그니처 변경 + 로그 포맷 안전화. `REQUEST_GAP_SEC` 0.3s → 0.15s (한도 50만이라 여유). |
+| `.github/workflows/crawl-policies.yml` | `timeout-minutes` 15 → 360 (풀빌드 1.5~2h 수용) |
+
+**내일(2026-05-17) 할 일** — 사용자 트리거 + 결과 확인 워크플로:
+
+1. **사용자**: GitHub Actions → `정책 자동 빌드` → **Run workflow** 클릭. 입력:
+   - `crawl: true`, `list_only: **false**`, `enrich: false`, `limit: 0`, `user_type: 개인,가구`, `merge: false`(덮어쓰기로 풀 재생성)
+2. 빌드 진행 ~1.5~2시간 (9,919개 × 약 0.6s = 약 100분)
+3. 완료 후 `docs/policies.json` 검증 (Claude):
+   - deadline 채움률 (예상 20~40% — 한국 정책 다수는 상시신청)
+   - eligibility/procedure/documents 채움률 (예상 70%+)
+   - eligibilityRule 채움률 (JA0xxx 코드가 채워진 정책만)
+4. 검증 OK면 **MainActivity 홈 집계 코드 작업** (Task #4):
+   - `SampleData.home` 하드코딩 제거
+   - `allPolicies` + profile로 thisWeek/deadlineSoon 동적 계산
+   - missed/missedTotal은 deadline 지난 자격 충족 정책으로 계산 (또는 별도 휴리스틱)
+5. 폰 빌드/설치 + 실제 9,919개로 작동하는 홈 화면 검증
+6. 데이터 검증 후 사용자 톤 피드백 → 차후 라운드 (즐겨찾기 화면 / WorkManager 알림 / Firebase 등)
+
+**다음 라운드 (R3) 후보**:
+- 즐겨찾기 목록 화면 (MyScreen → 받을 예정 카드 탭 시)
+- WorkManager 알림 스케줄링 (D-3, D-1 푸시)
+- Firebase Auth 통합 (Google 로그인)
+- 검색 + 필터 화면 (9,919개 중 자격 충족인 것만 또는 카테고리·지역 필터)
+
+
+
