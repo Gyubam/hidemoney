@@ -6,10 +6,18 @@ on:
     - cron: '0 18 * * *'
   workflow_dispatch:
     inputs:
-      enrich:
-        description: 'Gemini Flash로 summary 정련 (true/false)'
+      crawl:
+        description: '정부 API fresh fetch (true=data.go.kr에서 받아옴, false=기존 데이터에 enrich만)'
         required: false
         default: 'true'
+      enrich:
+        description: 'Gemini Flash로 정규화·정련 (true/false)'
+        required: false
+        default: 'true'
+      limit:
+        description: '--crawl 시 가져올 정책 수'
+        required: false
+        default: '30'
 
 permissions:
   contents: write
@@ -37,17 +45,21 @@ jobs:
       - name: 의존성 설치
         run: pip install -r tools/requirements.txt
 
-      - name: 정책 빌드 (Gemini 정련 포함)
+      - name: 정책 빌드 (정부 API fetch + Gemini 정규화)
         working-directory: tools
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-2.0-flash
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+          CRAWL: ${{ github.event.inputs.crawl || 'true' }}
+          ENRICH: ${{ github.event.inputs.enrich || 'true' }}
+          LIMIT: ${{ github.event.inputs.limit || '30' }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.enrich }}" = "false" ]; then
-            python build_policies.py
-          else
-            python build_policies.py --enrich
-          fi
+          args="--limit $LIMIT"
+          if [ "$CRAWL" = "true" ]; then args="$args --crawl"; fi
+          if [ "$ENRICH" = "true" ]; then args="$args --enrich"; fi
+          echo "Running: python build_policies.py $args"
+          python build_policies.py $args
 
       - name: 변경 있으면 커밋·푸시
         run: |

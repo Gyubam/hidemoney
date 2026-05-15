@@ -1384,3 +1384,28 @@ keytool -genkey -v -keystore hidemoney-release.jks `
   - (b) 복지로 사이트 직접 fetch (robots.txt 없으니 가능, 다만 SPA·세션 이슈 가능)
   - (c) 둘 다 — OpenAPI를 기준, 복지로는 카테고리 보강용
   - 결정 후 `tools/crawl.py` 추가하고 `build_policies.py`에 입력 단계 끼우면 됨
+
+### 2026-05-15 (R2.5 — data.go.kr 공공서비스 API 연결)
+
+- **API 활용신청 완료**: `행정안전부_대한민국 공공서비스(혜택) 정보` (data.go.kr) — **자동승인**, 일 호출 50만건, 활용기간 24개월, 비용 0
+  - Base URL: `https://api.odcloud.kr/api`
+  - 3 엔드포인트: `serviceList` (페이징 목록) / `serviceDetail` (단건 상세) / `supportConditions` (자격조건 구조화 JA0xxx 코드)
+  - 인증: `serviceKey` 쿼리 파라미터 (Decoding 원본 키 사용, requests 자동 URL 인코딩)
+- **🔐 신규 Secret**: `DATA_GO_KR_API_KEY` (Decoding 키) GitHub Secrets에 등록
+- **Swagger 스펙 파악**: serviceList 21필드 / serviceDetail 20필드 / supportConditions 32+ JA코드 — 우리 Policy 모델과 1:1 매핑 가능
+- **신규 Python 모듈**:
+  - `tools/crawl.py` — `GovApiClient` (retry 3회 + per-call 0.3s sleep + Session keep-alive) + `iter_services` 페이징 제너레이터 + `RawPolicy` dataclass (list/detail/conditions 묶음) + `fetch_policies(limit=N)`
+  - `tools/normalize.py` — `conditions_to_eligibility_rule` (JA0110/0111 → minAge/maxAge, JA0317~0320 → 학생, JA0326 → 직장인, JA0327 → 구직 중, JA0303 → requiresChildren — 정부 데이터 직매핑), `_llm_extract` (지원내용·구비서류·신청방법·지원대상 텍스트를 Gemini로 우리 스키마 추출), 화이트리스트 머지 + 카테고리 정합성 검증(OUR_CATEGORIES 6개만 허용)
+- **`build_policies.py` 통합**:
+  - 새 플래그: `--crawl` (정부 API에서 fresh fetch), `--limit N` (기본 30)
+  - 흐름: `fetch_policies → normalize_all → enrich_local(daysLeft/difficulty/roi) → validate → write_if_changed`
+  - crawl 모드는 normalize 단계에서 이미 LLM 사용 → summary 재정련(`enrich_policy`)은 스킵 (중복 호출 방지)
+  - 결정론적 부분만으로도 valid Policy 생산 — LLM 실패해도 빌드 안 깨짐
+- **`tools/requirements.txt`**: `requests==2.32.3` 추가
+- **워크플로우 갱신** (`.github/workflows/crawl-policies.yml`):
+  - `DATA_GO_KR_API_KEY` secret 주입 추가
+  - `workflow_dispatch` 입력 3개: `crawl` (기본 true) / `enrich` (기본 true) / `limit` (기본 30)
+  - cron 기본 동작: `--crawl --enrich --limit 30` (매일 새벽 3시 자동)
+- **검증 전략**: 첫 push 후 **workflow_dispatch로 `limit=3` 짧게 트리거** → 빨강·초록 + 자동 commit 결과 보고 → 잘 되면 cron으로 풀가동
+- **다음 라운드 (R3)**: WorkManager 알림 스케줄링 (마감 D-3 자동 푸시) OR Firebase 연동(Auth + Firestore + FCM) OR data.go.kr API 결과 품질 튜닝 (limit 늘리기, 카테고리 매핑 보강)
+

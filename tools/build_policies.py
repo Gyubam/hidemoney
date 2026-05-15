@@ -28,8 +28,14 @@ from typing import Any, Dict, List, Optional
 
 from dateutil import parser as date_parser
 
+from crawl import build_client_from_env as build_gov_client_from_env, fetch_policies
+from normalize import normalize_all
 from schema import Policy
-from summarize import GeminiClient, build_client_from_env, enrich_policy
+from summarize import (
+    GeminiClient,
+    build_client_from_env as build_llm_client_from_env,
+    enrich_policy,
+)
 
 log = logging.getLogger("build-policies")
 
@@ -127,28 +133,50 @@ def write_if_changed(policies: List[Dict[str, Any]], path: Path) -> bool:
 @dataclass
 class RunResult:
     total: int
+    fetched_from_gov: int
     enriched_by_llm: int
     changed: bool
 
 
-def run(*, enrich: bool, today: Optional[date] = None) -> RunResult:
+def run(
+    *,
+    enrich: bool,
+    crawl: bool,
+    limit: int,
+    today: Optional[date] = None,
+) -> RunResult:
     today = today or date.today()
-    log.info("Loading %s", OUTPUT_PATH)
-    base = json.loads(OUTPUT_PATH.read_text(encoding="utf-8"))
-    if not isinstance(base, list):
-        raise ValueError("policies.json must be a JSON array")
 
     llm_client: Optional[GeminiClient] = None
     if enrich:
-        llm_client = build_client_from_env()
+        llm_client = build_llm_client_from_env()
         if llm_client is None:
-            log.warning("GEMINI_API_KEY not set — skipping LLM enrich")
+            log.warning("GEMINI_API_KEY not set — skipping LLM steps")
+
+    fetched_count = 0
+    if crawl:
+        gov_client = build_gov_client_from_env()
+        if gov_client is None:
+            raise RuntimeError(
+                "DATA_GO_KR_API_KEY 환경변수 미설정 — --crawl 모드는 정부 API 키 필요"
+            )
+        log.info("Fetching from gov API (limit=%d)", limit)
+        raws = fetch_policies(gov_client, limit=limit)
+        log.info("Fetched %d raw policies — normalizing", len(raws))
+        base = normalize_all(raws, llm_client=llm_client)
+        fetched_count = len(base)
+    else:
+        log.info("Loading %s", OUTPUT_PATH)
+        base = json.loads(OUTPUT_PATH.read_text(encoding="utf-8"))
+        if not isinstance(base, list):
+            raise ValueError("policies.json must be a JSON array")
 
     out: List[Dict[str, Any]] = []
     llm_count = 0
-    for raw in base:
-        local = enrich_local(raw, today=today)
-        if llm_client is not None:
+    for raw_policy in base:
+        local = enrich_local(raw_policy, today=today)
+        # crawl 모드는 normalize 단계에서 이미 LLM 사용 → summary 재정련 스킵
+        if not crawl and llm_client is not None:
             refined = enrich_policy(local, client=llm_client)
             if refined is not local:
                 llm_count += 1
@@ -158,7 +186,12 @@ def run(*, enrich: bool, today: Optional[date] = None) -> RunResult:
 
     validated = validate_all(out)
     changed = write_if_changed(validated, OUTPUT_PATH)
-    return RunResult(total=len(validated), enriched_by_llm=llm_count, changed=changed)
+    return RunResult(
+        total=len(validated),
+        fetched_from_gov=fetched_count,
+        enriched_by_llm=llm_count,
+        changed=changed,
+    )
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -166,7 +199,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument(
         "--enrich",
         action="store_true",
-        help="Gemini Flash로 summary 정련 (GEMINI_API_KEY 필요)",
+        help="Gemini Flash 사용 (--crawl 시 정규화, 일반 모드 시 summary 정련). GEMINI_API_KEY 필요",
+    )
+    ap.add_argument(
+        "--crawl",
+        action="store_true",
+        help="data.go.kr 공공서비스(혜택) API에서 fresh fetch. DATA_GO_KR_API_KEY 필요",
+    )
+    ap.add_argument(
+        "--limit",
+        type=int,
+        default=30,
+        help="--crawl 시 가져올 정책 수 (기본 30)",
     )
     ap.add_argument(
         "--today",
@@ -188,14 +232,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         today = date_parser.parse(args.today).date()
 
     try:
-        result = run(enrich=args.enrich, today=today)
+        result = run(
+            enrich=args.enrich,
+            crawl=args.crawl,
+            limit=args.limit,
+            today=today,
+        )
     except Exception as e:
         log.exception("build failed: %s", e)
         return 1
 
     log.info(
-        "done — total=%d, llm_enriched=%d, file_changed=%s",
+        "done — total=%d, fetched_from_gov=%d, llm_enriched=%d, file_changed=%s",
         result.total,
+        result.fetched_from_gov,
         result.enriched_by_llm,
         result.changed,
     )

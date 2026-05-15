@@ -140,12 +140,15 @@ docs/
 
 tools/                                   # GitHub Actions 빌드 도구 (Python 3.11)
 ├── schema.py                            # Pydantic Policy/EligibilityRule (Kotlin 모델 미러)
+├── crawl.py                             # data.go.kr 공공서비스(혜택) API 클라이언트 (3 엔드포인트)
+├── normalize.py                         # raw → Policy 정규화 (룰 + LLM)
 ├── summarize.py                         # Gemini Flash 호출 + 화이트리스트 머지
-├── build_policies.py                    # orchestrator (load → enrich → validate → save)
-└── requirements.txt
+├── build_policies.py                    # orchestrator (crawl → normalize → enrich → validate → save)
+└── requirements.txt                     # google-generativeai/pydantic/python-dateutil/requests
 
 .github/workflows/
-└── crawl-policies.yml                   # cron 0 18 * * * + workflow_dispatch, secrets.GEMINI_API_KEY 주입
+└── crawl-policies.yml                   # cron 0 18 * * * + workflow_dispatch (crawl/enrich/limit 입력)
+                                         # secrets: GEMINI_API_KEY + DATA_GO_KR_API_KEY
 ```
 
 ---
