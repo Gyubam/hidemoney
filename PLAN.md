@@ -121,6 +121,56 @@ jobs:
 
 → 이게 PLAN 처음부터 "0원 운영" 가능했던 핵심 이유.
 
+#### 🔐 비밀 정보 관리 (절대 규칙 — public repo니까 더 엄격히)
+
+**API key·비밀번호·토큰은 절대 코드/JSON/`.env`에 박지 말 것.**
+한 번 push되면 git history에 영원히 남음 (강제 삭제해도 캐시·fork에 남아있을 수 있음).
+
+##### 1) GitHub Secrets 사용 (필수)
+- 등록: https://github.com/Gyubam/hidemoney/settings/secrets/actions → `New repository secret`
+- 등록할 키 목록 (3단계 진행 시):
+  - `GEMINI_API_KEY` — Google AI Studio에서 발급
+  - (추후) `FIREBASE_TOKEN` — Firebase Hosting deploy 시 (R4)
+  - (추후) `PLAY_STORE_KEY` — Play Console 자동 배포 시 (R8)
+- 워크플로우에서 참조 — 코드엔 절대 평문 X:
+  ```yaml
+  - run: python tools/summarize.py
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  ```
+  Python 측은 `os.environ["GEMINI_API_KEY"]`로 읽기.
+
+##### 2) Public repo에서도 Secret이 안전한 이유
+- GitHub이 **AES-256으로 암호화** 저장 (콘솔에서도 다시 볼 수 없음, 수정만 가능)
+- 워크플로우 로그에 자동 **마스킹** (실수로 `echo $GEMINI_API_KEY` 해도 `***`로 보임)
+- **Fork PR에서는 Secret 노출 안 됨** (외부 기여자가 악성 PR로 키 빼낼 수 없음)
+- repo 협업자 중 admin만 등록·수정 가능
+
+##### 3) 로컬 개발 시 키 사용
+- `.env` 파일 사용 + `.gitignore`에 추가 (이미 패턴 잡혀있음 — `*.local`/keystore 등)
+- 또는 환경변수로 export:
+  ```powershell
+  $env:GEMINI_API_KEY = "..."   # PowerShell, 세션 동안만
+  python tools/summarize.py
+  ```
+- `.env.example`만 push해서 다른 PC에서도 키 이름 확인 가능하게:
+  ```
+  GEMINI_API_KEY=
+  FIREBASE_TOKEN=
+  ```
+
+##### 4) 이미 들어있는 안전 장치 (`.gitignore`)
+- `keystore.properties` / `*.jks` / `*.keystore` (Android 서명 키)
+- `google-services.json` (Firebase 설정)
+- `local.properties` (Android SDK 경로 + 가능한 비밀)
+- `.claude/` (Claude Code 로컬 작업 메타)
+
+##### 5) 만약 실수로 키가 push 됐다면 (사고 대응)
+1. **즉시 키 재발급/폐기** — git history 삭제로는 부족 (캐시·fork·archive에 남음)
+2. Gemini: aistudio.google.com → 옛 키 Delete → 새 키 발급 → Secret 갱신
+3. 모니터링: 사용량 폭증 없는지 콘솔에서 며칠 확인
+4. 만약 도용 의심 → 콘솔에서 사용 통계 + IP 로그 확인
+
 ---
 
 **미리 준비할 것 (사용자)**:
