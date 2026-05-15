@@ -1,466 +1,552 @@
 [
     {
-        "id": "youth-rent",
-        "title": "청년 월세 지원",
-        "amount": 600000,
-        "deadline": "2026-05-27",
-        "daysLeft": 12,
-        "category": "주거",
-        "summary": "만 19~34세 청년 무주택자에게 월 최대 20만원, 12개월간 지원해드려요.",
-        "period": "최대 12개월 · 월 20만원",
-        "eligibility": [
-            "만 19~34세 청년",
-            "무주택자",
-            "본인 소득 중위 100% 이하",
-            "가구 중위소득 60% 이하"
-        ],
-        "documents": [
-            {
-                "name": "주민등록등본",
-                "sourceUrl": "https://www.gov.kr"
-            },
-            {
-                "name": "임대차계약서"
-            },
-            {
-                "name": "소득금액증명원",
-                "sourceUrl": "https://www.hometax.go.kr"
-            },
-            {
-                "name": "무주택 확인서",
-                "sourceUrl": "https://www.gov.kr"
-            }
-        ],
-        "procedure": [
-            "복지로 회원가입 / 로그인",
-            "복지서비스 → 주거지원 → 청년월세 메뉴 선택",
-            "신청서 작성 + 서류 업로드",
-            "지자체 심사 (평균 30일)",
-            "선정 시 본인 계좌로 매월 입금"
-        ],
-        "applicationOrg": "복지로",
-        "applicationUrl": "https://www.bokjiro.go.kr",
-        "eligibilityRule": {
-            "minAge": 19,
-            "maxAge": 34
-        },
-        "difficultyScore": 10,
-        "roiScore": 60
-    },
-    {
-        "id": "birth",
-        "title": "출산장려금",
-        "amount": 2000000,
-        "deadline": "2026-05-18",
-        "daysLeft": 3,
-        "category": "출산",
-        "summary": "첫 자녀 출산 시 일시금 200만원을 지자체에서 지급해요.",
-        "period": "출생일 기준 1년 이내 신청",
-        "eligibility": [
-            "출산일 기준 해당 지자체 6개월 이상 거주",
-            "출생신고 완료",
-            "부모 중 1인 주민등록 유지"
-        ],
-        "documents": [
-            {
-                "name": "출생증명서"
-            },
-            {
-                "name": "주민등록등본",
-                "sourceUrl": "https://www.gov.kr"
-            },
-            {
-                "name": "통장 사본"
-            }
-        ],
-        "procedure": [
-            "주민센터 방문 또는 정부24 온라인 신청",
-            "구비서류 제출",
-            "지자체 확인 후 일시금 지급 (평균 14일)"
-        ],
-        "applicationOrg": "정부24",
-        "applicationUrl": "https://www.gov.kr",
-        "eligibilityRule": {
-            "requiresChildren": true
-        },
-        "difficultyScore": 7,
-        "roiScore": 77
-    },
-    {
-        "id": "telecom",
-        "title": "통신비 감면",
-        "amount": 180000,
-        "deadline": "2026-05-22",
-        "daysLeft": 7,
-        "category": "생활",
-        "summary": "기초생활수급자·차상위계층 대상 이동통신 요금 월 최대 1.5만원 감면.",
-        "period": "월 최대 15,000원 · 상시",
-        "eligibility": [
-            "기초생활수급자 또는 차상위계층",
-            "본인 명의 이동통신 가입"
-        ],
-        "documents": [
-            {
-                "name": "수급자 증명서",
-                "sourceUrl": "https://www.gov.kr"
-            }
-        ],
-        "procedure": [
-            "통신사 고객센터 또는 대리점 방문",
-            "수급자 증명서 제출",
-            "다음 달 청구서부터 자동 감면"
-        ],
-        "applicationOrg": "통신3사",
-        "applicationUrl": "https://www.welfare.go.kr",
-        "difficultyScore": 4,
-        "roiScore": 70,
-        "isEligible": false
-    },
-    {
-        "id": "scholarship",
-        "title": "주거안정 장학금",
-        "amount": 800000,
-        "deadline": "2026-05-27",
-        "daysLeft": 12,
-        "category": "교육",
-        "summary": "지방 출신 대학생의 수도권 거주 부담을 줄이기 위한 장학금이에요.",
-        "period": "학기당 80만원",
-        "eligibility": [
-            "재학 중인 대학생",
-            "원거주지가 수도권 외 지역",
-            "성적 평점 3.0 이상"
-        ],
-        "documents": [
-            {
-                "name": "재학증명서"
-            },
-            {
-                "name": "성적증명서"
-            },
-            {
-                "name": "주민등록초본",
-                "sourceUrl": "https://www.gov.kr"
-            }
-        ],
-        "procedure": [
-            "한국장학재단 홈페이지 접속",
-            "주거안정 장학금 신청",
-            "서류 업로드",
-            "심사 후 학기 시작 전 지급"
-        ],
-        "applicationOrg": "한국장학재단",
-        "applicationUrl": "https://www.kosaf.go.kr",
-        "eligibilityRule": {
-            "minAge": 18,
-            "maxAge": 27,
-            "requiresOccupation": [
-                "학생"
-            ]
-        },
-        "difficultyScore": 8,
-        "roiScore": 68
-    },
-    {
-        "id": "youth-rent-loan",
-        "title": "청년 전월세 보증금 대출",
-        "amount": 200000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "주거",
-        "summary": "만 34세 이하 청년에게 최대 2억원, 연 1.5%대 저리 대출.",
-        "period": "최대 2억원 · 연 1.5%",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "주택도시기금",
-        "applicationUrl": "https://nhuf.molit.go.kr",
-        "eligibilityRule": {
-            "minAge": 19,
-            "maxAge": 34
-        },
-        "difficultyScore": 1,
-        "roiScore": 100
-    },
-    {
-        "id": "newlywed-loan",
-        "title": "신혼부부 전세자금 대출",
-        "amount": 300000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "주거",
-        "summary": "결혼 7년 이내 부부에게 최대 3억원, 연 1.2%대 전세대출.",
-        "period": "최대 3억원 · 연 1.2%",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "주택도시기금",
-        "applicationUrl": "https://nhuf.molit.go.kr",
-        "eligibilityRule": {
-            "requiresMarried": true
-        },
-        "difficultyScore": 1,
-        "roiScore": 100
-    },
-    {
-        "id": "mapo-movein",
-        "title": "마포구 청년 정착지원금",
-        "amount": 300000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "주거",
-        "summary": "마포구 전입 청년에게 일시금 30만원 지급 (1년 이상 거주 조건).",
-        "period": "1회 30만원",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "마포구청",
-        "applicationUrl": "https://www.mapo.go.kr",
-        "eligibilityRule": {
-            "minAge": 19,
-            "maxAge": 34,
-            "regions": [
-                "서울"
-            ]
-        },
-        "difficultyScore": 1,
-        "roiScore": 82
-    },
-    {
-        "id": "unemployment-benefit",
-        "title": "실업급여 (구직급여)",
-        "amount": 8640000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "생활",
-        "summary": "비자발적 퇴직자에게 평균임금 60%를 최대 270일간 지급.",
-        "period": "최대 9개월",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "고용24",
-        "applicationUrl": "https://www.work24.go.kr",
-        "difficultyScore": 1,
-        "roiScore": 100
-    },
-    {
-        "id": "jobseeker-support",
-        "title": "국민취업지원제도",
-        "amount": 3000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "생활",
-        "summary": "구직자에게 6개월 동안 월 50만원 + 취업활동비 지원.",
-        "period": "월 50만원 · 6개월",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "고용24",
-        "applicationUrl": "https://www.work24.go.kr",
-        "eligibilityRule": {
-            "requiresOccupation": [
-                "구직 중"
-            ]
-        },
-        "difficultyScore": 1,
-        "roiScore": 97
-    },
-    {
-        "id": "training-card",
-        "title": "국민내일배움카드",
-        "amount": 5000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "교육",
-        "summary": "5년간 최대 500만원, 직업훈련 수강료 지원.",
-        "period": "5년 최대 500만원",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "HRD-Net",
-        "applicationUrl": "https://www.hrd.go.kr",
-        "difficultyScore": 1,
-        "roiScore": 100
-    },
-    {
-        "id": "pregnancy-voucher",
-        "title": "임신·출산 진료비",
-        "amount": 1000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "출산",
-        "summary": "임산부에게 100만원 (다태아 140만원) 국민행복카드 지원.",
-        "period": "100만원 · 카드 형태",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "정부24",
-        "applicationUrl": "https://www.gov.kr",
-        "difficultyScore": 1,
-        "roiScore": 90
-    },
-    {
-        "id": "first-meet",
-        "title": "첫만남 이용권",
-        "amount": 2000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "출산",
-        "summary": "출생아 1인당 200만원 바우처 지급.",
-        "period": "1회 200만원",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "정부24",
-        "applicationUrl": "https://www.gov.kr",
-        "eligibilityRule": {
-            "requiresChildren": true
-        },
-        "difficultyScore": 1,
-        "roiScore": 95
-    },
-    {
-        "id": "parent-subsidy",
-        "title": "부모급여",
-        "amount": 8400000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "출산",
-        "summary": "만 0세 월 100만원, 만 1세 월 50만원 현금 지급.",
-        "period": "월 100만원 · 0~1세",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "복지로",
-        "applicationUrl": "https://www.bokjiro.go.kr",
-        "eligibilityRule": {
-            "requiresChildren": true
-        },
-        "difficultyScore": 1,
-        "roiScore": 100
-    },
-    {
-        "id": "newlywed-hope",
-        "title": "신혼희망타운",
+        "id": "000000465790",
+        "title": "유아학비 (누리과정) 지원",
         "amount": 0,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "주거",
-        "summary": "신혼·예비신혼부부 대상 분양·임대 우선공급.",
-        "period": "분양가 시세 70%",
+        "category": "",
+        "summary": "3~5세 누리과정 도입으로 유치원·어린이집에 국가수준 공통 교육과정(누리과정)을 적용함에 따라, 보호자의 소득수준에 관계없이 전 계층 유아학비, 보육료 지원",
+        "period": "",
         "eligibility": [],
         "documents": [],
         "procedure": [],
-        "applicationOrg": "LH 청약센터",
-        "applicationUrl": "https://apply.lh.or.kr",
+        "applicationOrg": "교육부",
+        "applicationUrl": "https://www.bokjiro.go.kr",
         "eligibilityRule": {
-            "requiresMarried": true
+            "minAge": 3,
+            "maxAge": 5
         },
         "difficultyScore": 1,
         "roiScore": 0
     },
     {
-        "id": "didimdol-loan",
-        "title": "신혼부부 디딤돌 대출",
-        "amount": 400000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "주거",
-        "summary": "결혼 7년 이내 부부에게 최대 4억원 주택구입자금 대출.",
-        "period": "최대 4억원 · 연 1.9%",
+        "id": "105100000001",
+        "title": "근로·자녀장려금",
+        "amount": 0,
+        "category": "",
+        "summary": "○ 근로장려세제\r\n - 저소득계층의 빈곤 탈출을 지원하고 사회안전망을 확충하기 위해 도입되었으며, 근로소득, 사업소득 또는 종교인소득에 따라 산정된 근로장려금을 환급 형태로 지급하여 저소득 계층의 근로를 유인하고 실질소득을 지원하기 위한 근로연계형 소득지원 제도\r\n○ 자녀장려세제\r\n - 저소득층 가구의 소득 및 부양자녀 수에 따라 자녀 장려금을 세금 환급 형태로 지급하여 근로 및 출산을 장려하는 소득지원 제도('15년부터 시행)",
+        "period": "",
         "eligibility": [],
         "documents": [],
         "procedure": [],
-        "applicationOrg": "주택도시기금",
-        "applicationUrl": "https://nhuf.molit.go.kr",
+        "applicationOrg": "국세청",
+        "applicationUrl": "https://www.hometax.go.kr",
         "eligibilityRule": {
-            "requiresMarried": true
-        },
-        "difficultyScore": 1,
-        "roiScore": 100
-    },
-    {
-        "id": "startup-school",
-        "title": "청년창업사관학교",
-        "amount": 100000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "창업",
-        "summary": "만 39세 이하 청년창업가에게 최대 1억원 + 1년 보육.",
-        "period": "1억원 + 1년 보육",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "K-Startup",
-        "applicationUrl": "https://www.k-startup.go.kr",
-        "eligibilityRule": {
-            "maxAge": 39
-        },
-        "difficultyScore": 1,
-        "roiScore": 100
-    },
-    {
-        "id": "youth-startup-fund",
-        "title": "청년창업지원금",
-        "amount": 10000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "창업",
-        "summary": "예비창업자·초기 창업자에게 사업화 자금 1000만원.",
-        "period": "1회 1000만원",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "K-Startup",
-        "applicationUrl": "https://www.k-startup.go.kr",
-        "eligibilityRule": {
-            "maxAge": 39
-        },
-        "difficultyScore": 1,
-        "roiScore": 100
-    },
-    {
-        "id": "next-mutual-aid",
-        "title": "청년내일채움공제",
-        "amount": 12000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "청년",
-        "summary": "중소기업 취업 청년이 2년 적립 시 1200만원 + 기업·정부 매칭.",
-        "period": "2년 1200만원",
-        "eligibility": [],
-        "documents": [],
-        "procedure": [],
-        "applicationOrg": "고용24",
-        "applicationUrl": "https://www.work24.go.kr",
-        "eligibilityRule": {
-            "minAge": 15,
-            "maxAge": 34,
+            "minAge": 18,
+            "maxAge": 65,
             "requiresOccupation": [
-                "직장인"
-            ]
+                "학생",
+                "직장인",
+                "구직 중"
+            ],
+            "requiresChildren": true
         },
         "difficultyScore": 1,
-        "roiScore": 100
+        "roiScore": 0
     },
     {
-        "id": "yda-account",
-        "title": "청년 도약 계좌",
-        "amount": 50000000,
-        "deadline": "상시",
-        "daysLeft": 90,
-        "category": "청년",
-        "summary": "5년간 매월 70만원 납입 시 정부 매칭 + 비과세.",
-        "period": "5년 최대 5천만원",
+        "id": "116010000001",
+        "title": "주택금융공사 월세자금보증",
+        "amount": 0,
+        "category": "",
+        "summary": "저소득층 등에게 월세자금보증을 하여 저소득층의 주거 안정성 제고",
+        "period": "",
         "eligibility": [],
         "documents": [],
         "procedure": [],
-        "applicationOrg": "은행 (취급기관)",
-        "applicationUrl": "https://www.fss.or.kr",
+        "applicationOrg": "한국주택금융공사",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/116010000001",
         "eligibilityRule": {
             "minAge": 19,
-            "maxAge": 34
+            "maxAge": 35,
+            "requiresOccupation": [
+                "학생",
+                "직장인",
+                "구직 중"
+            ],
+            "requiresChildren": true
         },
         "difficultyScore": 1,
-        "roiScore": 100
+        "roiScore": 0
+    },
+    {
+        "id": "119200000001",
+        "title": "친환경 에너지절감장비 보급",
+        "amount": 0,
+        "category": "",
+        "summary": "연근해 어업인을 대상으로 노후기관ㆍ장비ㆍ설비 대체 보급으로 안정적 조업기반 조성",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000001",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000007",
+        "title": "해양사고 국선 심판변론인 선정 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "해양사고관련자가 사회적 약자에 해당하는 경우 해양사고관련자의 권리보호를 위하여 국선 심판변론인 선정",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000007",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000008",
+        "title": "옵서버 승선경비 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "원양어업 입어수역을 관리하는 지역수산기구의 자원보존관리조치 이행을 위한 국제적 조업기준 준수여부 감시하는 옵서버 운영 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000008",
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000010",
+        "title": "합작수산물 관세 감면 추진",
+        "amount": 0,
+        "category": "",
+        "summary": "합작수산물과 공동수산물의 관세감면 추천",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "www.minwon.go.kr",
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000012",
+        "title": "귀어 창업 및 주택구입 지원(융자)",
+        "amount": 0,
+        "category": "",
+        "summary": "귀어업인이 되기를 희망하는 도시민들이 어촌지역에 안정적으로 정착할 수 있도록 창업(수산업, 어촌비즈니스업) 및 주택마련 자금을 지원하여 어촌사회 활력 제고",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000012",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 65
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000016",
+        "title": "원양어업 경영자금 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "원양어업인의 금융부담완화 및 지속적인 어업활동 영위를 위한 저리의 어업경영자금 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000016",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000022",
+        "title": "원양어선안전관리",
+        "amount": 0,
+        "category": "",
+        "summary": "원양어선의 안전성 증대와 어선원 복지증진",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "http://www.globalmarifin.com",
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000027",
+        "title": "산지 및 소비지 유통자금 융자 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "수산물을 원활히 공급하기 위한 유통자금 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000027",
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000044",
+        "title": "수산경영인회생자금",
+        "amount": 0,
+        "category": "",
+        "summary": "건실하게 수산업을 영위하다가 재해, 어·패류질병, 적조, 수산물 가격의 급락 등 그 밖의 사유에 의하여 일시적 경영위기에 처한 어업인의 회생 지원을 통해 어가의 경영안정과 어업의 안정적 발전 도모",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000044",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000045",
+        "title": "어업경영자금 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "어업인 금융부담완화 및 지속적인 어업활동 영위를 위한 저리의 어업경영자금* 지원\r\n* 양식어업경영자금, 어선어업등경영자금, 신고마을종묘생산자금",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000045",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000053",
+        "title": "TAC 참여어업인 경영개선자금 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "TAC 제도 적용으로 일시적인 경영악화를 겪고 있는 참여 어업인 대상 경영개선자금 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000053",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000055",
+        "title": "연안선박 현대화 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "노후한 연안 선박의 현대화를 통한 선박의 안전확보와 서비스 품질 제고 및 선사의 경쟁력 제고",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000055",
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000056",
+        "title": "안전복지형 연근해어선 기반구축",
+        "amount": 0,
+        "category": "",
+        "summary": "연근해 어선의 노후화에 따른 고비용·저효율의 어선구조를 어선원 안전복지 및 에너지 절감 등을 종합적으로 고려한 고효율 구조로 전환하여 어업경영 개선과 지속 가능한 생산 인프라 구축",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000056",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000059",
+        "title": "어업활동 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "사고, 질병, 교육, 임신 등으로 영어활동이 곤란한 어업인에게 대체인력 채용 비용 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000059",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000066",
+        "title": "어업인 역량 강화 교육 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "어업별 특성에 따라 조직된 단체에 포함된 어업인의 역량 강화",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000066",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000067",
+        "title": "어업인안전조업교육지원",
+        "amount": 0,
+        "category": "",
+        "summary": "어업인을 대상으로 구명·소화설비 작동방법 등 안전조업 교육을 실시하여 안전의식 제고 및 사고시 긴급상황 대처 능력을 강화",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000067",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000070",
+        "title": "창업어가멘토링지원",
+        "amount": 0,
+        "category": "",
+        "summary": "어업 초기 후계자 및 창업어가에 전문지식을 가진 후견인을 지원하여 안정적 어촌 정착 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000070",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000073",
+        "title": "어업인및어업인후계자교육지원(수산업경영인교육)",
+        "amount": 0,
+        "category": "",
+        "summary": "어촌 수산업 발전의 선도적 역할을 수행할 후계어업인력 육성",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000073",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000074",
+        "title": "천일염 장기저장시설 설치지원",
+        "amount": 0,
+        "category": "",
+        "summary": "천일염산업육성을 위하여 장기저장시설 설치 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000074",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000076",
+        "title": "어촌지도자교육지원",
+        "amount": 0,
+        "category": "",
+        "summary": "어촌 수산업 발전의 선도적 역할을 수행할 어촌의 지도자 양성 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000076",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000077",
+        "title": "천일염포장재지원",
+        "amount": 0,
+        "category": "",
+        "summary": "천일염의 위생적인 유통을 위하여 천일염포장재 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000077",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000078",
+        "title": "염전 바닥재 개선 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "천일염산업육성을 위하여 염전바닥재 개선 지원",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000078",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000082",
+        "title": "수산물 물류환경 개선",
+        "amount": 0,
+        "category": "",
+        "summary": "물류기기 임차·구매비용 지원을 통한 하역기계화 등 수산물 물류 효율화 도모",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000082",
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000085",
+        "title": "항로표지 전문교육 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "항로표지 분야의 전문인력의 양성, 교육 지원 및 관리",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://katon.or.kr",
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000097",
+        "title": "어선어업생산자 단체 자조금 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "생산자단체의 자발적 수산자원 관리, 시장교섭력 강화, 수급조절 및 가격안정 등을 위한 자체적인 기금(자조금) 조성‧운용을 유도",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000097",
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000109",
+        "title": "인증부표 교체비용 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "인증부표 보급을 통해 연안어장의 발포 폴리스티렌(EPS, 스티로폼) 부표 사용으로 인한 환경오염 방지 및 안전한 수산물 공급 기반 구축 도모",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000109",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
+    },
+    {
+        "id": "119200000110",
+        "title": "패각 친환경 처리 지원",
+        "amount": 0,
+        "category": "",
+        "summary": "양식장에서 나오는 폐패각의 효율적인 수거와 지원화 처리 및 해양배출 비용 지원으로 연안 오염방지 및 수산물 안전성 확보",
+        "period": "",
+        "eligibility": [],
+        "documents": [],
+        "procedure": [],
+        "applicationOrg": "해양수산부",
+        "applicationUrl": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/119200000110",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 120
+        },
+        "difficultyScore": 1,
+        "roiScore": 0
     }
 ]
