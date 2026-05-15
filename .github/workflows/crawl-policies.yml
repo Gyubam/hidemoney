@@ -10,14 +10,18 @@ on:
         description: '정부 API fresh fetch (true=data.go.kr에서 받아옴, false=기존 데이터에 enrich만)'
         required: false
         default: 'true'
-      enrich:
-        description: 'Gemini Flash로 정규화·정련 (true/false)'
+      list_only:
+        description: 'list_services만 fetch (true=빠른 풀빌드, false=detail까지 받음)'
         required: false
         default: 'true'
-      limit:
-        description: '--crawl 시 가져올 정책 수'
+      enrich:
+        description: 'Gemini Flash로 정규화·정련 (true/false). list_only=true면 자동 비활성'
         required: false
-        default: '30'
+        default: 'false'
+      limit:
+        description: '--crawl 시 가져올 정책 수 (0=전체)'
+        required: false
+        default: '0'
       user_type:
         description: '사용자구분 필터 (콤마 분리 OR 매치). 빈 값=필터 없음. 예: 개인,가구'
         required: false
@@ -60,14 +64,16 @@ jobs:
           GEMINI_MODEL: gemini-2.0-flash
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
           CRAWL: ${{ github.event.inputs.crawl || 'true' }}
-          ENRICH: ${{ github.event.inputs.enrich || 'true' }}
-          LIMIT: ${{ github.event.inputs.limit || '30' }}
+          LIST_ONLY: ${{ github.event.inputs.list_only || 'true' }}
+          ENRICH: ${{ github.event.inputs.enrich || 'false' }}
+          LIMIT: ${{ github.event.inputs.limit || '0' }}
           USER_TYPE: ${{ github.event.inputs.user_type || '개인,가구' }}
           MERGE: ${{ github.event.inputs.merge || 'true' }}
         shell: bash
         run: |
           args=(--limit "$LIMIT")
           if [ "$CRAWL" = "true" ]; then args+=(--crawl); fi
+          if [ "$LIST_ONLY" = "true" ]; then args+=(--list-only); fi
           if [ "$ENRICH" = "true" ]; then args+=(--enrich); fi
           if [ -n "$USER_TYPE" ]; then args+=(--user-type "$USER_TYPE"); fi
           if [ "$MERGE" = "true" ]; then args+=(--merge); fi

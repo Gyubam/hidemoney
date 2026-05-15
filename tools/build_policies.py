@@ -28,7 +28,11 @@ from typing import Any, Dict, List, Optional
 
 from dateutil import parser as date_parser
 
-from crawl import build_client_from_env as build_gov_client_from_env, fetch_policies
+from crawl import (
+    build_client_from_env as build_gov_client_from_env,
+    fetch_list_only,
+    fetch_policies,
+)
 from normalize import normalize_all
 from schema import Policy
 from summarize import (
@@ -157,15 +161,19 @@ def run(
     limit: int,
     user_type: Optional[str] = None,
     merge: bool = False,
+    list_only: bool = False,
     today: Optional[date] = None,
 ) -> RunResult:
     today = today or date.today()
 
     llm_client: Optional[GeminiClient] = None
-    if enrich:
+    if enrich and not list_only:
+        # list-only 모드에서는 detail/conditions가 None이라 LLM 의미 0
         llm_client = build_llm_client_from_env()
         if llm_client is None:
             log.warning("GEMINI_API_KEY not set — skipping LLM steps")
+    elif enrich and list_only:
+        log.info("list-only 모드 — LLM 비활성 (detail/conditions 없으면 의미 0)")
 
     fetched_count = 0
     if crawl:
@@ -174,12 +182,18 @@ def run(
             raise RuntimeError(
                 "DATA_GO_KR_API_KEY 환경변수 미설정 — --crawl 모드는 정부 API 키 필요"
             )
+        # limit<=0이면 무제한 (전체 fetch)
+        effective_limit: Optional[int] = limit if limit > 0 else None
         log.info(
-            "Fetching from gov API (limit=%d, user_type=%r)",
-            limit,
+            "Fetching from gov API (limit=%s, user_type=%r, list_only=%s)",
+            effective_limit if effective_limit else "ALL",
             user_type or "(none)",
+            list_only,
         )
-        raws = fetch_policies(gov_client, limit=limit, user_type=user_type)
+        if list_only:
+            raws = fetch_list_only(gov_client, limit=effective_limit, user_type=user_type)
+        else:
+            raws = fetch_policies(gov_client, limit=effective_limit or 30, user_type=user_type)
         log.info("Fetched %d raw policies — normalizing", len(raws))
         new_policies = normalize_all(raws, llm_client=llm_client)
         fetched_count = len(new_policies)
@@ -282,6 +296,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="기존 docs/policies.json에 id 기준 merge (덮어쓰기 X). 풀빌드 후 증분 갱신용.",
     )
     ap.add_argument(
+        "--list-only",
+        action="store_true",
+        help="list_services만 fetch (detail/conditions 받지 않음). 빠른 풀빌드. LLM 자동 비활성.",
+    )
+    ap.add_argument(
         "--today",
         default=None,
         help="기준일 (YYYY-MM-DD). 미지정 시 시스템 today. CI 재현성용.",
@@ -307,6 +326,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             limit=args.limit,
             user_type=args.user_type,
             merge=args.merge,
+            list_only=args.list_only,
             today=today,
         )
     except Exception as e:

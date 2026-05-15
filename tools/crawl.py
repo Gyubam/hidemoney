@@ -214,6 +214,42 @@ class GovApiClient:
         return RawPolicy(list_row=list_row, detail=detail, conditions=cond)
 
 
+def fetch_list_only(
+    client: GovApiClient,
+    *,
+    limit: Optional[int] = None,
+    per_page: int = 100,
+    user_type: Optional[str] = None,
+) -> List[RawPolicy]:
+    """list_services만 페이징 fetch — detail/conditions 받지 않음.
+
+    빠른 풀빌드용 (10,000개 정책 ~3분). normalize 단계에서 결정론만 적용 가능:
+    - category (서비스분야 → 6 카테고리 매핑)
+    - title, applicationOrg, applicationUrl
+    - amount (정규식)
+    - summary (list_row.서비스목적요약 raw 정부 톤)
+
+    eligibilityRule은 supportConditions가 별도 endpoint라 누락. LLM 백필 단계에서 채움.
+    """
+    raws: List[RawPolicy] = []
+    iterator = client.iter_services(
+        limit=limit,
+        per_page=per_page,
+        user_type=None,
+        client_filter_user_type=user_type,
+    )
+    for row in iterator:
+        svc_id = str(row.get("서비스ID") or "").strip()
+        if not svc_id:
+            continue
+        # detail/conditions는 None — LLM 백필에서 채움
+        raws.append(RawPolicy(list_row=row, detail=None, conditions=None))
+        if len(raws) % 100 == 0:
+            log.info("fetched %d (list-only)", len(raws))
+    log.info("fetch_list_only done: %d raws", len(raws))
+    return raws
+
+
 def fetch_policies(
     client: GovApiClient,
     *,

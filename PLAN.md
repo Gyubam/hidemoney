@@ -1548,3 +1548,31 @@ keytool -genkey -v -keystore hidemoney-release.jks `
     - 5분 정도 빌드 → 500개 풀 catalog 즉시 구축
   - 그 다음 매일 새벽 3시 cron이 알아서 LLM 정련 + merge 갱신
 
+### 2026-05-15 (R2.8.X — LLM cron 제거 + list-only 풀 fetch 전환)
+
+- **사용자 결정**: "LLM 없애고 정부api만 전체 끌고와줘 하루한번. LLM은 한번에 수동으로 너한테 맡길게"
+  - 매일 cron은 LLM 안 씀. 정부 데이터만 매일 풀 fetch.
+  - LLM 정련은 별개 작업. 사용자가 Claude에게 요청 → Claude가 detail+conditions fetch + LLM + merge + push.
+- **R2.8.X 구현**:
+  - `crawl.py` `fetch_list_only(client, limit, user_type)` — list_services만 페이징 fetch, detail+conditions는 받지 않음. 10,000개 정책을 ~3분에 완료 가능 (페이지당 0.3s sleep). RPolicy 만들 때 detail/conditions=None.
+  - `build_policies.py` `--list-only` 플래그 추가 + `--limit 0` (또는 음수)이면 무제한 fetch. list-only 모드에서는 LLM 자동 비활성(`enrich and not list_only` 가드)
+  - `workflow_dispatch`에 `list_only` input 신설 (기본 `'true'`)
+  - cron 기본 동작 변경: `crawl=true list_only=true enrich=false limit=0 user_type=개인,가구 merge=true`
+    - 매일 새벽 3시: 정부24 catalog 풀 fetch (~10,000개) → 결정론 매핑 → merge → push
+    - LLM·RPM 걱정 0
+- **list-only 모드의 결정론 채움**:
+  - ✅ title, applicationOrg, applicationUrl
+  - ✅ category (서비스분야 → 6 카테고리 매핑)
+  - ✅ amount (정규식, list_row의 지원내용 텍스트)
+  - ✅ summary (list_row.서비스목적요약 — 정부 raw 톤)
+  - ❌ eligibilityRule (supportConditions 별도 endpoint, 받지 않음)
+  - ❌ documents/procedure/eligibility (detail에서만 충실, LLM 백필에서 채움)
+- **다음 라운드 (R2.9 — LLM 백필)**: 사용자가 "정책 LLM 정련해줘 N개" 부탁 시 Claude가 수동 처리. 별도 워크플로우 또는 직접 코드 실행:
+  1. 기존 `docs/policies.json` 로드
+  2. LLM 정련 안 된 정책(예: `summary`가 정부 raw 톤이거나 `eligibilityRule` 없음) N개 선별
+  3. 각 정책에 `serviceDetail` + `supportConditions` fetch
+  4. `_llm_summary` + `_llm_items` 호출 (throttling 포함)
+  5. merge → push
+  - 사용자 부담: Run workflow 1회 클릭 또는 채팅 한 줄
+  - LLM 호출은 quota 안전권에서 100개 단위 처리
+
