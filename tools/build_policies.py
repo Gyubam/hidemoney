@@ -138,12 +138,25 @@ class RunResult:
     changed: bool
 
 
+def _load_existing_policies() -> List[Dict[str, Any]]:
+    """기존 docs/policies.json 로드. 없거나 빈 파일이면 빈 리스트."""
+    if not OUTPUT_PATH.exists():
+        return []
+    try:
+        existing = json.loads(OUTPUT_PATH.read_text(encoding="utf-8"))
+        return existing if isinstance(existing, list) else []
+    except json.JSONDecodeError:
+        log.warning("existing policies.json is corrupted — treating as empty")
+        return []
+
+
 def run(
     *,
     enrich: bool,
     crawl: bool,
     limit: int,
     user_type: Optional[str] = None,
+    merge: bool = False,
     today: Optional[date] = None,
 ) -> RunResult:
     today = today or date.today()
@@ -168,13 +181,39 @@ def run(
         )
         raws = fetch_policies(gov_client, limit=limit, user_type=user_type)
         log.info("Fetched %d raw policies — normalizing", len(raws))
-        base = normalize_all(raws, llm_client=llm_client)
-        fetched_count = len(base)
+        new_policies = normalize_all(raws, llm_client=llm_client)
+        fetched_count = len(new_policies)
     else:
         log.info("Loading %s", OUTPUT_PATH)
-        base = json.loads(OUTPUT_PATH.read_text(encoding="utf-8"))
-        if not isinstance(base, list):
-            raise ValueError("policies.json must be a JSON array")
+        new_policies = _load_existing_policies()
+        if not new_policies:
+            raise ValueError(f"{OUTPUT_PATH} is empty or missing — nothing to enrich")
+
+    # merge 모드: 기존 파일과 새 데이터를 id 기준으로 합침.
+    # 같은 id면 새 데이터로 덮어씀, 없는 id면 추가. 기존 정책 보존이 핵심.
+    if merge and crawl:
+        existing = _load_existing_policies()
+        by_id: Dict[str, Dict[str, Any]] = {
+            p["id"]: p for p in existing if isinstance(p, dict) and p.get("id")
+        }
+        added = 0
+        updated = 0
+        for new in new_policies:
+            pid = new.get("id")
+            if not pid:
+                continue
+            if pid in by_id:
+                updated += 1
+            else:
+                added += 1
+            by_id[pid] = new
+        log.info(
+            "merge: existing=%d, added=%d, updated=%d, total=%d",
+            len(existing), added, updated, len(by_id),
+        )
+        base = list(by_id.values())
+    else:
+        base = new_policies
 
     out: List[Dict[str, Any]] = []
     llm_count = 0
@@ -190,6 +229,21 @@ def run(
             out.append(local)
 
     validated = validate_all(out)
+
+    # 안전 장치: crawl 모드에서 0개 결과면 기존 파일 덮어쓰지 않음.
+    # (서버 필터·클라 필터·API 일시 장애 등으로 빈 list가 의도치 않게 push되는 사고 방지)
+    if crawl and not validated:
+        log.warning(
+            "crawl returned 0 policies — keeping existing %s as-is",
+            OUTPUT_PATH,
+        )
+        return RunResult(
+            total=0,
+            fetched_from_gov=fetched_count,
+            enriched_by_llm=llm_count,
+            changed=False,
+        )
+
     changed = write_if_changed(validated, OUTPUT_PATH)
     return RunResult(
         total=len(validated),
@@ -223,6 +277,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="cond[사용자구분::LIKE] 필터. 예: '개인'. 부처 편향 회피용.",
     )
     ap.add_argument(
+        "--merge",
+        action="store_true",
+        help="기존 docs/policies.json에 id 기준 merge (덮어쓰기 X). 풀빌드 후 증분 갱신용.",
+    )
+    ap.add_argument(
         "--today",
         default=None,
         help="기준일 (YYYY-MM-DD). 미지정 시 시스템 today. CI 재현성용.",
@@ -247,6 +306,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             crawl=args.crawl,
             limit=args.limit,
             user_type=args.user_type,
+            merge=args.merge,
             today=today,
         )
     except Exception as e:

@@ -1510,3 +1510,41 @@ keytool -genkey -v -keystore hidemoney-release.jks `
   - 30개 정책 빌드 시간 ~2.5분
 - **사용자 추가 옵션** (우리 fix 안 풀리면): https://aistudio.google.com/apikey → 새 키 클릭 → 사용량/한도 확인. 무료 한도 진짜 0이면 Google Cloud에서 결제 활성화(여전히 무료 한도 내 사용은 0원).
 
+### 2026-05-15 (R2.7.7 — 서버 필터 비활성 + 빈 결과 방어 + 0건 사고 복구)
+
+- **R2.7.6 검증 사고**: 빌드 결과 `docs/policies.json`이 **`[]` 빈 배열로 갱신됨**.
+  - 원인: `cond[사용자구분::LIKE]=개인,가구` — 정부24 서버가 콤마를 **literal로 해석** → "개인,가구"라는 단일 값에 매치되는 정책 0건 → fetch 0개 → normalize 0개 → write_if_changed가 `[]` 정상 쓰기 → bot auto-commit으로 push
+  - 우리 가정: 콤마=OR 분리자 / 실제: 콤마=literal 문자
+  - 추가 학습: 서버 LIKE 필터는 단일 값만 받음. OR 매치 불가.
+- **R2.7.7 fix**:
+  - `crawl.py` `fetch_policies` — 서버 필터(`user_type=`)를 **`None`으로 강제**. 한국어 키 + 콤마 OR 처리 모두 불안정하므로 서버 필터 자체 비활성. 클라이언트 측(`client_filter_user_type=`)에서만 substring OR 매치. 서버는 모든 정책 반환 → 클라가 개인/가구 매치만 yield → limit 채울 때까지 페이지 추가 fetch.
+  - `build_policies.py` `run` — **crawl 모드에서 0건 결과 시 write 스킵**. 기존 `docs/policies.json` 그대로 유지. 다음 빌드에서 정상 fetch되면 그때 갱신. 빈 list가 사고로 push되는 패턴 영구 방지.
+- **다음 빌드 후 회복 예상**: 정찰 기준 200건 중 ~170건(85%)이 개인/가구 매치 → per_page=100 한 페이지에서 약 85개 통과 → limit=20 채우기 충분 → 진짜 데이터로 복구.
+
+### 2026-05-15 (R2.8 — 하이브리드 풀빌드 + 증분 merge)
+
+- **방향 전환**: 사용자 제안 "LLM 안 쓰고 정부 API만으로?" 검토 결과 — 가능하나 summary 톤이 정부 문서체. **하이브리드 톱픽**: 결정론으로 빠른 풀빌드 + LLM은 점진 백필.
+- **R2.8.A 구현 — `--merge` 모드**:
+  - `build_policies.py` `_load_existing_policies()` 헬퍼 + `--merge` 플래그
+  - merge 로직: 기존 `docs/policies.json` 로드 → id 기준 dict 병합 → 같은 id면 새 데이터로 덮어쓰기, 없는 id면 추가 → **기존 정책 절대 사라지지 않음**
+  - 로그에 `merge: existing=N, added=N, updated=N, total=N` 출력
+  - `workflow_dispatch` `merge` input 추가 (기본 `'true'`) — 매일 cron도 자동 merge로 안전 모드
+- **세 가지 운영 시나리오**:
+  1. **첫 풀빌드 (사용자 1회 트리거)**:
+     - `crawl=true, enrich=false, limit=500, user_type=개인,가구, merge=false`
+     - LLM 없음 → throttling 없음 → ~5분에 500개 catalog 구축
+     - 결정론으로 다 채움: title/category(서비스분야→6카테고리)/eligibilityRule(JA0xxx)/amount(정규식)/summary(정부 raw)/applicationOrg+Url
+     - LLM 백필 안 됨 → summary 톤이 정부 문서체이긴 함
+  2. **매일 cron (자동)**:
+     - `crawl=true, enrich=true, limit=30, user_type=개인,가구, merge=true`
+     - 30개 fetch + LLM 정련 + 기존 catalog에 merge → 매일 30개씩 LLM 정련 누적
+     - throttling 효과로 RPM 안전 + merge로 사고 0
+  3. **수동 LLM 백필 (사용자가 가끔 트리거)**:
+     - 옵션 1과 옵션 2 사이. 사용자가 빠르게 LLM 정련 늘리고 싶을 때.
+- **2~3개월 후 예상**: 풀 catalog (수백~수천 정책) + LLM 정련률 점진 상승 → 일정 시점에 100% 정련.
+- **즉시 사용자 액션 (지금 한 번만)**:
+  - push 후 `정책 자동 빌드` → Run workflow 입력:
+    - crawl: true / enrich: **false** / limit: **500** / user_type: 개인,가구 / merge: **false**
+    - 5분 정도 빌드 → 500개 풀 catalog 즉시 구축
+  - 그 다음 매일 새벽 3시 cron이 알아서 LLM 정련 + merge 갱신
+

@@ -22,6 +22,10 @@ on:
         description: '사용자구분 필터 (콤마 분리 OR 매치). 빈 값=필터 없음. 예: 개인,가구'
         required: false
         default: '개인,가구'
+      merge:
+        description: '기존 데이터에 merge (true) 또는 덮어쓰기 (false). 증분 갱신 시 true'
+        required: false
+        default: 'true'
 
 permissions:
   contents: write
@@ -59,12 +63,14 @@ jobs:
           ENRICH: ${{ github.event.inputs.enrich || 'true' }}
           LIMIT: ${{ github.event.inputs.limit || '30' }}
           USER_TYPE: ${{ github.event.inputs.user_type || '개인,가구' }}
+          MERGE: ${{ github.event.inputs.merge || 'true' }}
         shell: bash
         run: |
           args=(--limit "$LIMIT")
           if [ "$CRAWL" = "true" ]; then args+=(--crawl); fi
           if [ "$ENRICH" = "true" ]; then args+=(--enrich); fi
           if [ -n "$USER_TYPE" ]; then args+=(--user-type "$USER_TYPE"); fi
+          if [ "$MERGE" = "true" ]; then args+=(--merge); fi
           echo "Running: python build_policies.py ${args[*]}"
           python build_policies.py "${args[@]}"
 

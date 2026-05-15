@@ -223,14 +223,15 @@ def fetch_policies(
 ) -> List[RawPolicy]:
     """limit 개수의 정책에 대해 list+detail+conditions 묶음을 받아 리스트로 반환.
 
-    user_type: 사용자구분 필터. 서버 측 cond[사용자구분::LIKE]와 클라이언트 측 필터
-    둘 다 적용 — 서버 필터가 한국어 키 인코딩 문제로 무력해도 클라 필터가 잡아냄.
+    user_type: 사용자구분 필터. 콤마 분리 OR 매치 ('개인,가구' 등).
+    정부24 서버의 cond[사용자구분::LIKE]는 콤마를 literal로 해석 → OR 매치 불가.
+    그래서 서버 필터는 비활성 (None), 클라이언트 측에서만 substring OR 매치.
     """
     raws: List[RawPolicy] = []
     iterator = client.iter_services(
         limit=limit,
         per_page=max(per_page, 100),  # 클라 필터로 많이 걸러질 수 있어 더 큰 페이지
-        user_type=user_type,
+        user_type=None,  # 서버 필터 비활성 — 콤마 OR 매치 불가하므로
         client_filter_user_type=user_type,
     )
     for row in iterator:
