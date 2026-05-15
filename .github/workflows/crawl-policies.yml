@@ -18,6 +18,10 @@ on:
         description: '--crawl 시 가져올 정책 수'
         required: false
         default: '30'
+      user_type:
+        description: '사용자구분 필터 (예: 개인). 빈 값이면 필터 없음 (부처 편향 위험)'
+        required: false
+        default: '개인'
 
 permissions:
   contents: write
@@ -54,12 +58,15 @@ jobs:
           CRAWL: ${{ github.event.inputs.crawl || 'true' }}
           ENRICH: ${{ github.event.inputs.enrich || 'true' }}
           LIMIT: ${{ github.event.inputs.limit || '30' }}
+          USER_TYPE: ${{ github.event.inputs.user_type || '개인' }}
+        shell: bash
         run: |
-          args="--limit $LIMIT"
-          if [ "$CRAWL" = "true" ]; then args="$args --crawl"; fi
-          if [ "$ENRICH" = "true" ]; then args="$args --enrich"; fi
-          echo "Running: python build_policies.py $args"
-          python build_policies.py $args
+          args=(--limit "$LIMIT")
+          if [ "$CRAWL" = "true" ]; then args+=(--crawl); fi
+          if [ "$ENRICH" = "true" ]; then args+=(--enrich); fi
+          if [ -n "$USER_TYPE" ]; then args+=(--user-type "$USER_TYPE"); fi
+          echo "Running: python build_policies.py ${args[*]}"
+          python build_policies.py "${args[@]}"
 
       - name: 변경 있으면 커밋·푸시
         run: |

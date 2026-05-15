@@ -119,12 +119,24 @@ class GovApiClient:
         *,
         limit: Optional[int] = None,
         per_page: int = 100,
+        user_type: Optional[str] = None,
+        service_field: Optional[str] = None,
     ) -> Iterable[Dict[str, Any]]:
-        """모든 서비스를 페이징으로 yield. limit 도달 시 조기 종료."""
+        """모든 서비스를 페이징으로 yield. limit 도달 시 조기 종료.
+
+        user_type: 사용자구분 LIKE 필터 (예: '개인'). 정부24가 부처별로 정렬된 결과를
+        반환하기 때문에, 필터 없이 page=1만 받으면 특정 부처(예: 해양수산부)에 편향됨.
+        개인 사용자 대상 정책만 받으려면 user_type='개인' 권장.
+        """
         fetched = 0
         page = 1
         while True:
-            body = self.list_services(page=page, per_page=per_page)
+            body = self.list_services(
+                page=page,
+                per_page=per_page,
+                user_type=user_type,
+                service_field=service_field,
+            )
             data = body.get("data") or []
             if not data:
                 break
@@ -186,10 +198,19 @@ def fetch_policies(
     *,
     limit: int = 30,
     per_page: int = 50,
+    user_type: Optional[str] = None,
 ) -> List[RawPolicy]:
-    """limit 개수의 정책에 대해 list+detail+conditions 묶음을 받아 리스트로 반환."""
+    """limit 개수의 정책에 대해 list+detail+conditions 묶음을 받아 리스트로 반환.
+
+    user_type: '개인' 등 사용자구분 필터 (None=필터 없음).
+    """
     raws: List[RawPolicy] = []
-    for row in client.iter_services(limit=limit, per_page=per_page):
+    iterator = client.iter_services(
+        limit=limit,
+        per_page=per_page,
+        user_type=user_type,
+    )
+    for row in iterator:
         svc_id = str(row.get("서비스ID") or "").strip()
         if not svc_id:
             log.warning("skipped row without 서비스ID: %r", row)

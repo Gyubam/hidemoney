@@ -1409,3 +1409,29 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 - **검증 전략**: 첫 push 후 **workflow_dispatch로 `limit=3` 짧게 트리거** → 빨강·초록 + 자동 commit 결과 보고 → 잘 되면 cron으로 풀가동
 - **다음 라운드 (R3)**: WorkManager 알림 스케줄링 (마감 D-3 자동 푸시) OR Firebase 연동(Auth + Firestore + FCM) OR data.go.kr API 결과 품질 튜닝 (limit 늘리기, 카테고리 매핑 보강)
 
+### 2026-05-15 (R2.6 — 데이터 품질 튜닝)
+
+- **첫 실측 결과 (R2.5 검증)**: workflow_dispatch limit=30 → bot auto-commit `13c332f`. 인프라 100% 동작 확인. **하지만 두 가지 데이터 품질 문제 발견**:
+  - **부처 편향**: 30개 중 27개가 해양수산부 (정부24 serviceList가 소관기관코드 순 정렬 → page=1 통째로 한 부처에 걸림)
+  - **LLM 정규화 거의 실패**: amount=0 (30/30), category="" (30/30), eligibility/documents/procedure 빈 배열 (30/30). summary는 raw text("○ 근로장려세제 - ...") 그대로 복붙.
+  - 단 `eligibilityRule`은 정확 (`{minAge:19,maxAge:35,...}` JA0xxx 직매핑 OK)
+- **두 갈래 fix**:
+  - **부처 편향 → 사용자구분 필터**: `crawl.py`/`build_policies.py`에 `user_type` 파라미터 추가, workflow_dispatch `user_type` input 신설 (기본값 `'개인'`)
+  - **LLM 정규화 → 프롬프트 전면 재설계** (`normalize.py`):
+    - 적극 추출 톤 ("원문에 있는 정보를 적극 추출")
+    - **few-shot 예시** 1개 (청년 월세 지원 정규화 결과를 모델 안에 박음)
+    - summary **재작성 의무** (raw 복붙 금지)
+    - category **빈 문자열 금지** (6개 중 가장 가까운 거 무조건 선택)
+    - amount 계산 가이드 ("월 N만원은 12개월 가정해 N*120000")
+    - 카테고리 매핑 가이드 6개 카테고리별 키워드 명시
+- **amount fallback (정규식)**: `guess_amount_from_text` 신규 — LLM이 amount=0 출력해도 `지원내용`/`서비스목적` 텍스트에서 정규식으로 가장 큰 금액 추정(`'\d+(억|만|천)?원'` 패턴). 스모크 테스트 통과:
+  - '월 최대 20만원, 12개월' → 200,000 (LLM이 12개월 곱셈 처리하면 2,400,000)
+  - '최대 2억원 대출' → 200,000,000
+  - '연 1,200,000원' → 1,200,000
+  - '비금전 지원' → 0
+- **워크플로우 갱신**: bash arg array 패턴으로 변경(한국어 user_type 단어 split 안전), `shell: bash` 명시
+- **사용자 액션 (R2.6 검증)**: push 후 workflow_dispatch → `crawl=true / enrich=true / limit=20 / user_type=개인` → 1~2분 → bot auto-commit 확인 + 결과 품질 점검 (부처 다양성·amount·category·summary 톤 4가지)
+- **남은 위험**:
+  - `user_type='개인'`이 정부24 API에서 valid 값인지 불확실 (추측). 실패 시 다른 값(`일반인`/`전체` 등) 시도.
+  - LLM이 너무 적극 추론해서 환각 위험. 다만 검증 시 raw text와 비교해 평가 가능.
+

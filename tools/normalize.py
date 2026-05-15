@@ -101,35 +101,48 @@ def _slugify(service_id: str) -> str:
 
 OUR_CATEGORIES = ["주거", "출산", "생활", "교육", "청년", "창업"]
 
-LLM_NORMALIZE_PROMPT = """너는 정부 공공서비스(혜택) 데이터를 모바일 앱용으로 정규화하는 전문가다.
-정부24 API 원본 데이터를 보고, 아래 JSON 스키마로 변환해라.
+LLM_NORMALIZE_PROMPT = """너는 정부 공공서비스(혜택) 데이터를 모바일 앱 '숨은지원금'용으로 정규화하는 전문가다.
+앱은 사용자가 본인이 받을 수 있는 정부 지원금을 빠르게 발견하도록 돕는 토스 톤 앱이다.
 
-[원본 데이터]
+[입력]
 SERVICE_LIST:
 {list_row}
 
 SERVICE_DETAIL:
 {detail}
 
-[출력 스키마 — 이 6개 키만 출력. 다른 키 절대 만들지 마.]
+[너의 임무]
+원문에 있는 정보를 **적극 추출**해 아래 JSON 스키마로 정규화. 모든 키 출력 필수.
+
 {{
-  "summary": "1~2문장 60자 이내. 토스 톤 존댓말 (~해드려요). 누가/얼마/언제 한눈에.",
-  "category": "주거|출산|생활|교육|청년|창업 중 하나 (정확히 일치). 모호하면 빈 문자열.",
-  "amount": 정수. 원 단위. 텍스트에서 금액 추출. 모호하면 0.
-  "period": "지원 기간 한 줄. 예: '월 20만원 · 최대 12개월'. 없으면 빈 문자열.",
-  "eligibility": ["자격 체크리스트", "..."],
+  "summary": "1~2문장 60자 이내. 토스 톤으로 자연스럽게 **재작성** (raw text 복붙 절대 금지). 누가·얼마·언제가 한눈에. 어미는 '~해드려요/~지원해요/~받을 수 있어요' 같은 친근한 존댓말.",
+  "category": "정확히 다음 6개 중 하나: 주거 | 출산 | 생활 | 교육 | 청년 | 창업. 가장 가까운 것을 반드시 골라라.",
+  "amount": 정수. 원 단위. 텍스트에서 금액 추출. '월 N만원'은 12개월 가정해 N*120000. '최대 N억'은 N*100000000. 범위면 상한값. 정말 비금전이면 0.,
+  "period": "지원 기간/주기 한 줄. 예: '월 20만원 · 최대 12개월' 또는 '연 1회' 또는 '상시'. 빈 문자열 허용.",
+  "eligibility": ["자격 체크리스트 3~6개. 각 항목 25자 이내. 지원대상+선정기준에서 추출. 가급적 빈 배열 피하기."],
   "documents": [{{"name": "서류명"}}, ...],
-  "procedure": ["1단계", "2단계", ...]
+  "procedure": ["1단계", "2단계", "..."]
 }}
+
+[카테고리 매핑 가이드]
+- 주거: 월세/전세/주택/보증금/임대/이사/주거 관련
+- 출산: 출산/임신/육아/보육/어린이/유아/다자녀
+- 생활: 의료/통신/공과금/생필품/장애/돌봄/노인/기초생활/저소득
+- 교육: 학비/장학금/직업훈련/교재/학자금/유아학비
+- 청년: 청년/대학생/취업/구직/자격증/일자리 (위 4개에 안 맞을 때만)
+- 창업: 창업/사업/소상공인/벤처/어업/축산/임업/농업
+
+[좋은 정규화 예시]
+원문 detail: "만 19~34세 청년 무주택자에게 월 최대 20만원, 12개월간 주거 안정 지원. 신청서류: 주민등록등본, 임대차계약서, 소득금액증명원. 절차: 복지로 회원가입 → 메뉴 선택 → 신청서 작성 → 심사 → 지급"
+좋은 결과:
+{{"summary":"만 19~34세 청년 무주택자에게 월 최대 20만원을 12개월간 지원해드려요.","category":"주거","amount":2400000,"period":"월 20만원 · 최대 12개월","eligibility":["만 19~34세 청년","무주택자","월세 거주"],"documents":[{{"name":"주민등록등본"}},{{"name":"임대차계약서"}},{{"name":"소득금액증명원"}}],"procedure":["복지로 회원가입","메뉴 선택","신청서 작성 + 서류 업로드","지자체 심사 후 지급"]}}
 
 규칙:
 - 출력은 JSON 객체 하나. ```json 마크다운 펜스 금지.
-- amount는 숫자만 (단위·콤마 없음). 범위면 최대값. 모호하면 0.
-- category는 6개 중 정확한 한 단어. 못 정하면 빈 문자열.
-- eligibility 3~6개. 사용자가 빠르게 체크할 수 있는 짧은 항목으로.
-- documents 항목은 서류명만. 발급처 URL은 별도 처리.
-- procedure는 1단계당 한 문장 이내.
-- 원문 정보 없는 필드는 합리적 추론보다 빈 값 우선 (eligibility/documents/procedure는 빈 배열, period는 빈 문자열).
+- 모든 키 반드시 출력.
+- summary는 raw text 복붙 금지. 반드시 자연스러운 토스 톤으로 재작성.
+- category는 빈 문자열 금지. 6개 중 가장 가까운 것 무조건 선택.
+- 정보 부족해도 적극 추론. eligibility는 최소 2~3개 항목.
 """
 
 
@@ -179,6 +192,32 @@ def _parse_json_loose(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+# 한국어 금액 표기 정규식: "월 20만원", "최대 2억원", "연 1,200,000원" 등
+_AMOUNT_PATTERN = re.compile(
+    r"(\d{1,4}(?:,\d{3})*|\d+)\s*(억|만|천)?\s*원"
+)
+_UNIT_MULT = {"억": 100_000_000, "만": 10_000, "천": 1_000, None: 1}
+
+
+def guess_amount_from_text(text: str) -> int:
+    """텍스트에서 가장 큰 금액 추정 — LLM 추출 실패 시 fallback."""
+    if not text:
+        return 0
+    candidates: List[int] = []
+    for m in _AMOUNT_PATTERN.finditer(text):
+        try:
+            n = int(m.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        unit = m.group(2)
+        mult = _UNIT_MULT.get(unit, 1)
+        value = n * mult
+        # 너무 작은 값(잔돈 단위) 또는 비현실적 큰 값 필터
+        if 1_000 <= value <= 10_000_000_000:
+            candidates.append(value)
+    return max(candidates) if candidates else 0
+
+
 # ────────────────────────────────────────────────────────────────────────────────
 # 메인 변환
 # ────────────────────────────────────────────────────────────────────────────────
@@ -217,12 +256,13 @@ def normalize(
     if llm_client is not None:
         extracted = _llm_extract(raw, llm_client=llm_client)
         # 화이트리스트 머지
-        for key in ("summary", "category", "amount", "period"):
+        for key in ("summary", "category", "period"):
             val = extracted.get(key)
             if isinstance(val, str) and val.strip():
                 policy[key] = val.strip()
-            elif isinstance(val, (int, float)) and key == "amount":
-                policy[key] = int(val)
+        amt_val = extracted.get("amount")
+        if isinstance(amt_val, (int, float)) and amt_val > 0:
+            policy["amount"] = int(amt_val)
         for key in ("eligibility", "procedure"):
             val = extracted.get(key)
             if isinstance(val, list):
@@ -239,6 +279,20 @@ def normalize(
                 elif isinstance(d, str) and d.strip():
                     cleaned.append({"name": d.strip()})
             policy["documents"] = cleaned
+
+    # amount fallback — LLM 실패해도 텍스트에서 정규식 추출
+    if not policy.get("amount"):
+        fallback_text = " ".join(
+            str(v) for v in (
+                detail.get("지원내용"),
+                detail.get("서비스목적"),
+                list_row.get("서비스목적요약"),
+                list_row.get("지원내용"),
+            ) if v
+        )
+        guessed = guess_amount_from_text(fallback_text)
+        if guessed > 0:
+            policy["amount"] = guessed
 
     # category 정합성 — OUR_CATEGORIES에 없으면 빈 문자열
     if policy.get("category") and policy["category"] not in OUR_CATEGORIES:

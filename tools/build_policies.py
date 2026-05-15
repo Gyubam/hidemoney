@@ -143,6 +143,7 @@ def run(
     enrich: bool,
     crawl: bool,
     limit: int,
+    user_type: Optional[str] = None,
     today: Optional[date] = None,
 ) -> RunResult:
     today = today or date.today()
@@ -160,8 +161,12 @@ def run(
             raise RuntimeError(
                 "DATA_GO_KR_API_KEY 환경변수 미설정 — --crawl 모드는 정부 API 키 필요"
             )
-        log.info("Fetching from gov API (limit=%d)", limit)
-        raws = fetch_policies(gov_client, limit=limit)
+        log.info(
+            "Fetching from gov API (limit=%d, user_type=%r)",
+            limit,
+            user_type or "(none)",
+        )
+        raws = fetch_policies(gov_client, limit=limit, user_type=user_type)
         log.info("Fetched %d raw policies — normalizing", len(raws))
         base = normalize_all(raws, llm_client=llm_client)
         fetched_count = len(base)
@@ -213,6 +218,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="--crawl 시 가져올 정책 수 (기본 30)",
     )
     ap.add_argument(
+        "--user-type",
+        default=None,
+        help="cond[사용자구분::LIKE] 필터. 예: '개인'. 부처 편향 회피용.",
+    )
+    ap.add_argument(
         "--today",
         default=None,
         help="기준일 (YYYY-MM-DD). 미지정 시 시스템 today. CI 재현성용.",
@@ -236,6 +246,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             enrich=args.enrich,
             crawl=args.crawl,
             limit=args.limit,
+            user_type=args.user_type,
             today=today,
         )
     except Exception as e:
