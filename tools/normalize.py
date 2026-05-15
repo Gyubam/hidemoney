@@ -1,10 +1,13 @@
 """정부 API 원본(RawPolicy) → 우리 Policy 스키마 정규화.
 
-두 단계 합성:
-- 결정론 단계: supportConditions의 JA0xxx 구조화 코드 → EligibilityRule 직매핑
-- LLM 단계: 비정형 텍스트(지원내용/구비서류/신청방법/지원대상) → eligibility/documents/procedure/amount/category/period 추출
+3 단계 합성 (LLM 부담 분산):
+- 결정론 1: supportConditions의 JA0xxx 구조화 코드 → EligibilityRule 직매핑
+- 결정론 2: serviceList의 '서비스분야' → 우리 6 카테고리 직매핑 (LLM 우회)
+- 결정론 3: 모든 텍스트 필드 정규식 → amount 추출 (LLM 우회)
+- LLM 1: summary 정련 + period + amount 보강 (단일 작업, 부담 적음)
+- LLM 2: eligibility/documents/procedure 추출 (단일 작업, 부담 적음)
 
-LLM 단계 실패해도 결정론 단계 결과만으로 valid Policy 생산. 빌드 절대 안 깨짐.
+LLM 어느 단계 실패해도 결정론 단계만으로 valid Policy 생산. 빌드 절대 안 깨짐.
 """
 
 from __future__ import annotations
@@ -19,8 +22,11 @@ from crawl import RawPolicy
 log = logging.getLogger(__name__)
 
 
+OUR_CATEGORIES = ["주거", "출산", "생활", "교육", "청년", "창업"]
+
+
 # ────────────────────────────────────────────────────────────────────────────────
-# 결정론적 매핑
+# 결정론 1 — supportConditions의 JA0xxx → EligibilityRule
 # ────────────────────────────────────────────────────────────────────────────────
 
 
@@ -62,7 +68,6 @@ def conditions_to_eligibility_rule(cond: Optional[Dict[str, Any]]) -> Optional[D
     if _yn(cond.get("JA0327")):
         occupations.append("구직 중")
     if occupations:
-        # 중복 제거 + 순서 보존
         seen: List[str] = []
         for o in occupations:
             if o not in seen:
@@ -73,10 +78,49 @@ def conditions_to_eligibility_rule(cond: Optional[Dict[str, Any]]) -> Optional[D
     if _yn(cond.get("JA0303")):
         rule["requiresChildren"] = True
 
-    # 가족 구성 — 한부모/조손은 우리 모델에 대응 없음, 일단 무시
-    # 결혼 여부도 supportConditions에 명시 코드 없어 LLM에 위임
-
     return rule or None
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# 결정론 2 — 정부24 '서비스분야' → 우리 6 카테고리 매핑
+# ────────────────────────────────────────────────────────────────────────────────
+
+
+SERVICE_FIELD_TO_CATEGORY: Dict[str, str] = {
+    # 정부24 표준 서비스분야 11종 → 우리 6 카테고리
+    "주거-자립": "주거",
+    "보육-교육": "교육",
+    "임신-출산": "출산",
+    "입양-위탁": "출산",
+    "고용-창업": "청년",
+    "생활지원": "생활",
+    "신체건강": "생활",
+    "정신건강": "생활",
+    "보호-돌봄": "생활",
+    "안전-위기": "생활",
+    "문화-여가": "생활",
+}
+
+# 정부24가 하이픈 빠진 표기로 줄 가능성 대비
+_FIELD_ALIASES: Dict[str, str] = {
+    "주거자립": "주거-자립",
+    "보육교육": "보육-교육",
+    "임신출산": "임신-출산",
+    "입양위탁": "입양-위탁",
+    "고용창업": "고용-창업",
+    "보호돌봄": "보호-돌봄",
+    "안전위기": "안전-위기",
+    "문화여가": "문화-여가",
+}
+
+
+def category_from_field(service_field: Optional[str]) -> str:
+    """정부24 '서비스분야' 값 → 우리 6 카테고리. 매핑 못 찾으면 빈 문자열."""
+    if not service_field:
+        return ""
+    key = str(service_field).strip()
+    key = _FIELD_ALIASES.get(key, key)
+    return SERVICE_FIELD_TO_CATEGORY.get(key, "")
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -88,95 +132,97 @@ _NON_SLUG = re.compile(r"[^a-z0-9]+")
 
 
 def _slugify(service_id: str) -> str:
-    """서비스ID(영숫자 혼합)를 우리 id 슬러그로. 충돌 가능성 낮으니 그대로 lower."""
+    """서비스ID(영숫자 혼합)를 우리 id 슬러그로."""
     base = (service_id or "").strip().lower()
     base = _NON_SLUG.sub("-", base).strip("-")
     return base or "unknown"
 
 
 # ────────────────────────────────────────────────────────────────────────────────
-# LLM 보강
+# 결정론 3 — 한국어 금액 정규식
 # ────────────────────────────────────────────────────────────────────────────────
 
 
-OUR_CATEGORIES = ["주거", "출산", "생활", "교육", "청년", "창업"]
+_AMOUNT_PATTERN = re.compile(r"(\d{1,4}(?:,\d{3})*|\d+)\s*(억|만|천)?\s*원")
+_UNIT_MULT = {"억": 100_000_000, "만": 10_000, "천": 1_000, None: 1}
 
-LLM_NORMALIZE_PROMPT = """너는 정부 공공서비스(혜택) 데이터를 모바일 앱 '숨은지원금'용으로 정규화하는 전문가다.
-앱은 사용자가 본인이 받을 수 있는 정부 지원금을 빠르게 발견하도록 돕는 토스 톤 앱이다.
 
-[입력]
-SERVICE_LIST:
-{list_row}
+def guess_amount_from_text(text: str) -> int:
+    """텍스트에서 가장 큰 금액 추정. LLM 추출 실패 시 fallback."""
+    if not text:
+        return 0
+    candidates: List[int] = []
+    for m in _AMOUNT_PATTERN.finditer(text):
+        try:
+            n = int(m.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        unit = m.group(2)
+        mult = _UNIT_MULT.get(unit, 1)
+        value = n * mult
+        # 너무 작은 값 또는 비현실적 큰 값 필터
+        if 1_000 <= value <= 10_000_000_000:
+            candidates.append(value)
+    return max(candidates) if candidates else 0
 
-SERVICE_DETAIL:
-{detail}
 
-[너의 임무]
-원문에 있는 정보를 **적극 추출**해 아래 JSON 스키마로 정규화. 모든 키 출력 필수.
+def _gather_text(*sources: Optional[str]) -> str:
+    return " ".join(str(s) for s in sources if s)
 
+
+# ────────────────────────────────────────────────────────────────────────────────
+# LLM 단계 — 두 작업으로 분리 (한 번에 5필드 추출하면 모델이 압도됨)
+# ────────────────────────────────────────────────────────────────────────────────
+
+
+LLM_SUMMARY_PROMPT = """너는 정부 공공서비스를 모바일 앱 '숨은지원금'에 표시할 카피라이터다.
+아래 정부 정책 원문을 보고 토스 톤 한 줄 요약과 기간·금액을 추출하라.
+
+[원문]
+서비스명: {title}
+서비스목적: {purpose}
+지원대상: {target}
+지원내용: {content}
+신청기한: {deadline}
+
+[출력 — JSON 객체 하나, 마크다운 펜스 금지]
 {{
-  "summary": "1~2문장 60자 이내. 토스 톤으로 자연스럽게 **재작성** (raw text 복붙 절대 금지). 누가·얼마·언제가 한눈에. 어미는 '~해드려요/~지원해요/~받을 수 있어요' 같은 친근한 존댓말.",
-  "category": "정확히 다음 6개 중 하나: 주거 | 출산 | 생활 | 교육 | 청년 | 창업. 가장 가까운 것을 반드시 골라라.",
-  "amount": 정수. 원 단위. 텍스트에서 금액 추출. '월 N만원'은 12개월 가정해 N*120000. '최대 N억'은 N*100000000. 범위면 상한값. 정말 비금전이면 0.,
-  "period": "지원 기간/주기 한 줄. 예: '월 20만원 · 최대 12개월' 또는 '연 1회' 또는 '상시'. 빈 문자열 허용.",
-  "eligibility": ["자격 체크리스트 3~6개. 각 항목 25자 이내. 지원대상+선정기준에서 추출. 가급적 빈 배열 피하기."],
-  "documents": [{{"name": "서류명"}}, ...],
-  "procedure": ["1단계", "2단계", "..."]
+  "summary": "1~2문장 60자 이내. '~해드려요/지원해요/받을 수 있어요' 같은 친근한 존댓말로 **재작성**. raw 복붙 금지. 누가·얼마·언제 한눈에.",
+  "period": "지원 기간/주기 한 줄. 예: '월 20만원 · 12개월', '연 1회', '상시'. 없으면 빈 문자열.",
+  "amount": 정수. 원 단위. '월 N만원'은 12개월 가정해 N*120000. '최대 N억'은 N*100000000. 비금전이면 0.
 }}
 
-[카테고리 매핑 가이드]
-- 주거: 월세/전세/주택/보증금/임대/이사/주거 관련
-- 출산: 출산/임신/육아/보육/어린이/유아/다자녀
-- 생활: 의료/통신/공과금/생필품/장애/돌봄/노인/기초생활/저소득
-- 교육: 학비/장학금/직업훈련/교재/학자금/유아학비
-- 청년: 청년/대학생/취업/구직/자격증/일자리 (위 4개에 안 맞을 때만)
-- 창업: 창업/사업/소상공인/벤처/어업/축산/임업/농업
-
-[좋은 정규화 예시]
-원문 detail: "만 19~34세 청년 무주택자에게 월 최대 20만원, 12개월간 주거 안정 지원. 신청서류: 주민등록등본, 임대차계약서, 소득금액증명원. 절차: 복지로 회원가입 → 메뉴 선택 → 신청서 작성 → 심사 → 지급"
-좋은 결과:
-{{"summary":"만 19~34세 청년 무주택자에게 월 최대 20만원을 12개월간 지원해드려요.","category":"주거","amount":2400000,"period":"월 20만원 · 최대 12개월","eligibility":["만 19~34세 청년","무주택자","월세 거주"],"documents":[{{"name":"주민등록등본"}},{{"name":"임대차계약서"}},{{"name":"소득금액증명원"}}],"procedure":["복지로 회원가입","메뉴 선택","신청서 작성 + 서류 업로드","지자체 심사 후 지급"]}}
-
-규칙:
-- 출력은 JSON 객체 하나. ```json 마크다운 펜스 금지.
-- 모든 키 반드시 출력.
-- summary는 raw text 복붙 금지. 반드시 자연스러운 토스 톤으로 재작성.
-- category는 빈 문자열 금지. 6개 중 가장 가까운 것 무조건 선택.
-- 정보 부족해도 적극 추론. eligibility는 최소 2~3개 항목.
+[좋은 예]
+입력: title='청년 월세 지원' / content='만 19~34세 청년 무주택자에게 월 20만원을 12개월간 지원'
+출력: {{"summary":"만 19~34세 청년 무주택자에게 월 20만원을 12개월간 지원해드려요.","period":"월 20만원 · 12개월","amount":2400000}}
 """
 
 
-def _llm_extract(
-    raw: RawPolicy,
-    *,
-    llm_client: Any,
-) -> Dict[str, Any]:
-    """Gemini로 비정형 필드 추출. 실패 시 빈 dict 반환."""
-    list_row = dict(raw.list_row or {})
-    detail = dict(raw.detail or {})
-    # 토큰 절약 — 우리가 안 쓰는 필드 제거
-    for noise_key in ("조회수", "등록일시", "수정일시"):
-        list_row.pop(noise_key, None)
-        detail.pop(noise_key, None)
+LLM_ITEMS_PROMPT = """너는 정부 정책 raw text를 모바일 앱용 체크리스트로 분해하는 전문가다.
 
-    prompt = LLM_NORMALIZE_PROMPT.format(
-        list_row=json.dumps(list_row, ensure_ascii=False, indent=2),
-        detail=json.dumps(detail, ensure_ascii=False, indent=2),
-    )
+[원문]
+서비스명: {title}
+지원대상: {target}
+선정기준: {criteria}
+구비서류: {documents}
+신청방법: {procedure}
 
-    try:
-        resp = llm_client._model.generate_content(  # noqa: SLF001
-            prompt,
-            generation_config={
-                "temperature": 0.2,
-                "response_mime_type": "application/json",
-            },
-        )
-        text = (resp.text or "").strip()
-        return _parse_json_loose(text) or {}
-    except Exception as e:
-        log.warning("LLM normalize failed for %s: %s", raw.service_id, e)
-        return {}
+[출력 — JSON 객체 하나, 마크다운 펜스 금지]
+{{
+  "eligibility": ["자격 체크리스트 3~6개. 각 항목 25자 이내. 지원대상+선정기준에서 추출."],
+  "documents": [{{"name": "서류명"}}],
+  "procedure": ["1단계", "2단계"]
+}}
+
+규칙:
+- 모든 키 반드시 출력. 정보 없으면 빈 배열.
+- 서류명은 콤마/줄바꿈으로 분리해 각각 1항목.
+- 신청방법은 단계별 분리, 각 단계 30자 이내.
+
+[좋은 예]
+입력: target='만 19~34세 청년 무주택자' / documents='주민등록등본, 임대차계약서, 소득금액증명원' / procedure='복지로 회원가입 후 신청서 작성, 지자체 심사'
+출력: {{"eligibility":["만 19~34세 청년","무주택자"],"documents":[{{"name":"주민등록등본"}},{{"name":"임대차계약서"}},{{"name":"소득금액증명원"}}],"procedure":["복지로 회원가입","신청서 작성","지자체 심사"]}}
+"""
 
 
 def _parse_json_loose(text: str) -> Optional[Dict[str, Any]]:
@@ -192,30 +238,46 @@ def _parse_json_loose(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-# 한국어 금액 표기 정규식: "월 20만원", "최대 2억원", "연 1,200,000원" 등
-_AMOUNT_PATTERN = re.compile(
-    r"(\d{1,4}(?:,\d{3})*|\d+)\s*(억|만|천)?\s*원"
-)
-_UNIT_MULT = {"억": 100_000_000, "만": 10_000, "천": 1_000, None: 1}
+def _call_llm(client: Any, prompt: str, *, service_id: str, task: str) -> Dict[str, Any]:
+    try:
+        resp = client._model.generate_content(  # noqa: SLF001
+            prompt,
+            generation_config={
+                "temperature": 0.3,
+                "response_mime_type": "application/json",
+            },
+        )
+        text = (resp.text or "").strip()
+        return _parse_json_loose(text) or {}
+    except Exception as e:
+        log.warning("LLM %s failed for %s: %s", task, service_id, e)
+        return {}
 
 
-def guess_amount_from_text(text: str) -> int:
-    """텍스트에서 가장 큰 금액 추정 — LLM 추출 실패 시 fallback."""
-    if not text:
-        return 0
-    candidates: List[int] = []
-    for m in _AMOUNT_PATTERN.finditer(text):
-        try:
-            n = int(m.group(1).replace(",", ""))
-        except ValueError:
-            continue
-        unit = m.group(2)
-        mult = _UNIT_MULT.get(unit, 1)
-        value = n * mult
-        # 너무 작은 값(잔돈 단위) 또는 비현실적 큰 값 필터
-        if 1_000 <= value <= 10_000_000_000:
-            candidates.append(value)
-    return max(candidates) if candidates else 0
+def _llm_summary(raw: RawPolicy, *, client: Any) -> Dict[str, Any]:
+    detail = raw.detail or {}
+    list_row = raw.list_row or {}
+    prompt = LLM_SUMMARY_PROMPT.format(
+        title=list_row.get("서비스명") or detail.get("서비스명") or "",
+        purpose=detail.get("서비스목적") or list_row.get("서비스목적요약") or "",
+        target=detail.get("지원대상") or list_row.get("지원대상") or "",
+        content=detail.get("지원내용") or list_row.get("지원내용") or "",
+        deadline=detail.get("신청기한") or list_row.get("신청기한") or "",
+    )
+    return _call_llm(client, prompt, service_id=raw.service_id, task="summary")
+
+
+def _llm_items(raw: RawPolicy, *, client: Any) -> Dict[str, Any]:
+    detail = raw.detail or {}
+    list_row = raw.list_row or {}
+    prompt = LLM_ITEMS_PROMPT.format(
+        title=list_row.get("서비스명") or detail.get("서비스명") or "",
+        target=detail.get("지원대상") or list_row.get("지원대상") or "",
+        criteria=detail.get("선정기준") or list_row.get("선정기준") or "",
+        documents=detail.get("구비서류") or "",
+        procedure=detail.get("신청방법") or list_row.get("신청방법") or "",
+    )
+    return _call_llm(client, prompt, service_id=raw.service_id, task="items")
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -228,16 +290,16 @@ def normalize(
     *,
     llm_client: Any = None,
 ) -> Dict[str, Any]:
-    """RawPolicy → 우리 Policy dict. 검증은 build_policies.validate_all에서."""
+    """RawPolicy → 우리 Policy dict."""
     list_row = raw.list_row or {}
     detail = raw.detail or {}
 
-    # 결정론 단계 — 정부 데이터에서 직접 매핑되는 필드
+    # ── 결정론 단계 — 정부 데이터 직매핑
     policy: Dict[str, Any] = {
         "id": _slugify(raw.service_id),
         "title": str(list_row.get("서비스명") or detail.get("서비스명") or "").strip(),
         "amount": 0,
-        "category": "",
+        "category": category_from_field(list_row.get("서비스분야")),
         "summary": str(detail.get("서비스목적") or list_row.get("서비스목적요약") or "").strip(),
         "period": "",
         "eligibility": [],
@@ -247,54 +309,62 @@ def normalize(
         "applicationUrl": str(detail.get("온라인신청사이트URL") or list_row.get("상세조회URL") or "").strip(),
     }
 
-    # 자격 룰 (구조화 데이터 → 우리 모델 직매핑)
+    # eligibilityRule (JA0xxx 직매핑)
     rule = conditions_to_eligibility_rule(raw.conditions)
     if rule:
         policy["eligibilityRule"] = rule
 
-    # LLM 단계 — 비정형 필드 정련
+    # amount 정규식 — 모든 텍스트 필드 통합
+    all_text = _gather_text(
+        list_row.get("서비스목적요약"),
+        list_row.get("지원내용"),
+        list_row.get("지원대상"),
+        list_row.get("선정기준"),
+        detail.get("서비스목적"),
+        detail.get("지원내용"),
+        detail.get("지원대상"),
+        detail.get("선정기준"),
+    )
+    guessed = guess_amount_from_text(all_text)
+    if guessed > 0:
+        policy["amount"] = guessed
+
+    # ── LLM 단계 1: summary + period + amount 정련
     if llm_client is not None:
-        extracted = _llm_extract(raw, llm_client=llm_client)
-        # 화이트리스트 머지
-        for key in ("summary", "category", "period"):
-            val = extracted.get(key)
-            if isinstance(val, str) and val.strip():
-                policy[key] = val.strip()
-        amt_val = extracted.get("amount")
-        if isinstance(amt_val, (int, float)) and amt_val > 0:
-            policy["amount"] = int(amt_val)
-        for key in ("eligibility", "procedure"):
-            val = extracted.get(key)
-            if isinstance(val, list):
-                policy[key] = [str(x).strip() for x in val if str(x).strip()]
-        docs = extracted.get("documents")
+        s_out = _llm_summary(raw, client=llm_client)
+        sm = s_out.get("summary")
+        if isinstance(sm, str) and sm.strip():
+            policy["summary"] = sm.strip()
+        pr = s_out.get("period")
+        if isinstance(pr, str) and pr.strip():
+            policy["period"] = pr.strip()
+        am = s_out.get("amount")
+        if isinstance(am, (int, float)) and am > policy["amount"]:
+            policy["amount"] = int(am)
+
+    # ── LLM 단계 2: eligibility + documents + procedure 추출
+    if llm_client is not None:
+        i_out = _llm_items(raw, client=llm_client)
+        elig = i_out.get("eligibility")
+        if isinstance(elig, list):
+            policy["eligibility"] = [str(x).strip() for x in elig if str(x).strip()][:6]
+        proc = i_out.get("procedure")
+        if isinstance(proc, list):
+            policy["procedure"] = [str(x).strip() for x in proc if str(x).strip()][:8]
+        docs = i_out.get("documents")
         if isinstance(docs, list):
             cleaned: List[Dict[str, Any]] = []
             for d in docs:
                 if isinstance(d, dict) and d.get("name"):
-                    item = {"name": str(d["name"]).strip()}
+                    item: Dict[str, Any] = {"name": str(d["name"]).strip()}
                     if d.get("sourceUrl"):
                         item["sourceUrl"] = str(d["sourceUrl"]).strip()
                     cleaned.append(item)
                 elif isinstance(d, str) and d.strip():
                     cleaned.append({"name": d.strip()})
-            policy["documents"] = cleaned
+            policy["documents"] = cleaned[:10]
 
-    # amount fallback — LLM 실패해도 텍스트에서 정규식 추출
-    if not policy.get("amount"):
-        fallback_text = " ".join(
-            str(v) for v in (
-                detail.get("지원내용"),
-                detail.get("서비스목적"),
-                list_row.get("서비스목적요약"),
-                list_row.get("지원내용"),
-            ) if v
-        )
-        guessed = guess_amount_from_text(fallback_text)
-        if guessed > 0:
-            policy["amount"] = guessed
-
-    # category 정합성 — OUR_CATEGORIES에 없으면 빈 문자열
+    # category 정합성 — OUR_CATEGORIES에 없으면 빈 문자열 (방어)
     if policy.get("category") and policy["category"] not in OUR_CATEGORIES:
         log.debug("dropping non-canonical category %r for %s", policy["category"], policy["id"])
         policy["category"] = ""

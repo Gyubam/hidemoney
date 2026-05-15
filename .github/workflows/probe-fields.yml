@@ -1,0 +1,38 @@
+name: 정부24 필드 정찰
+
+# 수동 실행 전용. 사용자구분/서비스분야 등 실제 값 추출용.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: probe-fields
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: tools/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r tools/requirements.txt
+
+      - name: 정찰 실행
+        working-directory: tools
+        env:
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+          PYTHONIOENCODING: utf-8
+        run: python probe_fields.py

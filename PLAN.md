@@ -1435,3 +1435,32 @@ keytool -genkey -v -keystore hidemoney-release.jks `
   - `user_type='개인'`이 정부24 API에서 valid 값인지 불확실 (추측). 실패 시 다른 값(`일반인`/`전체` 등) 시도.
   - LLM이 너무 적극 추론해서 환각 위험. 다만 검증 시 raw text와 비교해 평가 가능.
 
+### 2026-05-15 (R2.7 — LLM 부담 분산 + 카테고리 결정론 매핑 + 정찰 도구)
+
+- **R2.6 검증 결과 (`a9f8b44`)**: 4가지 점검 모두 미흡
+  - 부처 다양성 ❌ (28/30 해양수산부, user_type='개인' 필터가 정부24에서 무력화)
+  - amount 17% (정규식 fallback만 5건 잡음)
+  - category 0% (LLM이 6 카테고리 빈 값으로 출력)
+  - summary 정부 raw 문서체 그대로 (재작성 안 함)
+- **진단**: 한 LLM 호출에 5필드 동시 추출이 부담 + 어업/수산업 정책 28개가 우리 6 카테고리에 진짜로 안 맞음 → 모델이 안전한 길(빈 값) 선택
+- **R2.7 핵심 변경**:
+  - **카테고리 결정론 매핑** (`normalize.py`) — 정부24 표준 `서비스분야` 11종(`주거-자립`/`임신-출산`/`고용-창업` 등) → 우리 6 카테고리(주거/출산/생활/교육/청년/창업) 직매핑 dict. LLM 완전 우회. 하이픈 표기 변형 대비 alias 추가.
+  - **LLM 호출 2개로 분리**:
+    - `_llm_summary` — summary + period + amount만 (단일 작업)
+    - `_llm_items` — eligibility + documents + procedure만 (단일 작업)
+    - 한 호출이 너무 많은 책임을 갖지 않도록 prompt도 짧고 명확하게. few-shot 예시는 각 prompt마다 1개씩.
+  - **amount 정규식 적용 텍스트 확장** — `지원내용/서비스목적/지원대상/선정기준` 4필드(list_row+detail) 전부 통합해 정규식 시도. LLM amount=0 시 fallback.
+  - 결과 머지 시 LLM amount > 정규식 amount일 때만 LLM 값으로 갱신 (큰 값 우선)
+- **정찰 도구** (`tools/probe_fields.py` + `.github/workflows/probe-fields.yml`):
+  - 별도 워크플로우 (수동 실행 전용, build 잡과 분리)
+  - serviceList page=1 perPage=200 fetch → 사용자구분/서비스분야/지원유형/소관기관유형/소관기관명 unique 값 Counter 출력 + sample raw row 출력
+  - 이거 한 번 돌리면 user_type='개인'이 valid한지, 서비스분야 실제 표기가 우리 dict와 일치하는지 즉시 확인 가능
+- **사용자 액션 (R2.7 검증)**:
+  1. push 후 `정부24 필드 정찰` 워크플로우 Run workflow (1분) → Actions 로그에서 unique 값 캡처
+  2. 그 결과 보고 user_type 진짜 값/서비스분야 alias 보강
+  3. 다시 `정책 자동 빌드` 워크플로우 Run workflow (limit=20, user_type=정찰결과값)
+- **다음 라운드 (R2.8)**: 풀빌드 + 증분 갱신
+  - `--full-build`: 정부24 전체 catalog 1회 fetch (~수천 건), LLM 없이 결정론 매핑만
+  - cron 매일: `cond[수정일시::GTE]=어제` 필터로 변경분만 + LLM 정규화 백필
+  - 2~3개월 후 완전 자동화된 풀 카탈로그 + LLM 정규화 100%
+
