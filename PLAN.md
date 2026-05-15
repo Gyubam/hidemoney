@@ -69,6 +69,60 @@ adb devices         # SM-A356N device 보이면 OK
 
 목표: 매일 새벽 3시 자동 실행 → 정부24/복지로 크롤링 → Gemini Flash로 요약·태깅·ROI 점수 → `docs/policies.json` 자동 commit/push.
 
+#### 💡 왜 서버 없이 0원으로 가능한가 (구조 원리)
+
+**GitHub Actions = GitHub이 빌려주는 무료 서버**.
+- 우리가 작성하는 건 `.github/workflows/crawl-policies.yml` (cron 명세 파일)
+- GitHub이 자기네 Ubuntu VM(Azure 인프라)을 cron에 맞춰 자동으로 띄움 → 우리 스크립트 실행 → VM 폐기
+- VM 관리·서버 운영·고정 IP 0, 비용 0, 사용자 손 안 대고 매일 자동
+
+**무료 한도**:
+| 항목 | 한도 | 우리 사용량 |
+|---|---|---|
+| Public repo (hidemoney) | **무제한** | 무한정 OK |
+| Private repo | 월 2000분 | 하루 5분 × 30 = 150분 (어차피 한도 안) |
+
+→ 우리 repo는 public이라 진짜로 0원, 한도 초과 불가.
+
+**동작 흐름 (예시 YAML)**:
+```yaml
+# .github/workflows/crawl-policies.yml
+name: 정책 자동 크롤링
+on:
+  schedule:
+    - cron: '0 18 * * *'        # UTC 18시 = KST 03시
+  workflow_dispatch:             # 수동 실행 버튼도 활성화
+jobs:
+  crawl:
+    runs-on: ubuntu-latest       # GitHub이 매번 새 VM 띄워줌
+    permissions:
+      contents: write            # git push 권한
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r tools/requirements.txt
+      - run: python tools/crawl.py            # 정부24/복지로 fetch + 파싱
+      - run: python tools/summarize.py        # Gemini Flash로 요약·태깅·ROI
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/policies.json
+          git diff --staged --quiet || git commit -m "auto: 정책 데이터 갱신 $(date +%F)"
+          git push
+```
+
+**push되면** → GitHub Pages 자동 재빌드 → 앱이 다음 fetch에서 최신 정책 받음.
+
+**사용자 개입은 단 1회**: Gemini API key 발급 + GitHub Secret 등록. 그 다음부터 매일 자동.
+
+→ 이게 PLAN 처음부터 "0원 운영" 가능했던 핵심 이유.
+
+---
+
 **미리 준비할 것 (사용자)**:
 1. **Gemini API 키 발급** (무료, 일 100만 토큰):
    - https://aistudio.google.com/apikey
