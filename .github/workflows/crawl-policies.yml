@@ -19,9 +19,9 @@ on:
         required: false
         default: '30'
       user_type:
-        description: '사용자구분 필터 (예: 개인). 빈 값이면 필터 없음 (부처 편향 위험)'
+        description: '사용자구분 필터 (콤마 분리 OR 매치). 빈 값=필터 없음. 예: 개인,가구'
         required: false
-        default: '개인'
+        default: '개인,가구'
 
 permissions:
   contents: write
@@ -58,7 +58,7 @@ jobs:
           CRAWL: ${{ github.event.inputs.crawl || 'true' }}
           ENRICH: ${{ github.event.inputs.enrich || 'true' }}
           LIMIT: ${{ github.event.inputs.limit || '30' }}
-          USER_TYPE: ${{ github.event.inputs.user_type || '개인' }}
+          USER_TYPE: ${{ github.event.inputs.user_type || '개인,가구' }}
         shell: bash
         run: |
           args=(--limit "$LIMIT")

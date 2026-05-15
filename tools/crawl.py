@@ -144,11 +144,20 @@ class GovApiClient:
             data = body.get("data") or []
             if not data:
                 break
+            # 클라 필터를 OR 매치로 — '개인,가구' 같은 콤마 분리 입력 지원
+            filters: Optional[List[str]] = None
+            if client_filter_user_type:
+                raw_filter = str(client_filter_user_type).strip()
+                if "," in raw_filter:
+                    filters = [s.strip() for s in raw_filter.split(",") if s.strip()]
+                else:
+                    filters = [raw_filter]
+
             for row in data:
                 scanned += 1
-                if client_filter_user_type:
+                if filters:
                     row_value = str(row.get("사용자구분") or "")
-                    if client_filter_user_type not in row_value:
+                    if not any(f in row_value for f in filters):
                         continue
                 yield row
                 fetched += 1

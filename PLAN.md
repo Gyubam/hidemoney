@@ -1487,3 +1487,26 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 - **남은 검증 필요**: LLM 호출 silent fail 가설 — Actions 로그에서 `LLM summary failed` WARNING 있는지 사용자가 확인해줘야. summary가 raw text 그대로인 게 LLM 호출 실패 때문인지, LLM이 raw 복사한 건지 아직 미확정.
 - **R2.7.5 후 검증 예상**: category 100%, 부처 다양성 확보(개인 대상 정책만), amount 30% 이상 (정규식 + 정부24 catalog의 50%가 현금 계열이라 강한 신호).
 
+### 2026-05-15 (R2.7.6 — Gemini 429 rate limit fix + 부처 필터 OR)
+
+- **R2.7.5 검증 결과**: category 0%→**100%** ✅ (가운뎃점 fix 결정타!). 다만 두 가지 남음:
+  - 부처 다양성 28/30 해양수산부 그대로 — `client_filter_user_type='개인'` substring 매치가 너무 엄격 → 보건복지부 가구 단위 정책 다 제외
+  - LLM 0% — Actions 로그에 결정적 단서:
+    ```
+    429 You exceeded your current quota...
+    * Quota exceeded for metric: ...input_token_count, limit: 0, model: gemini-2.0-flash
+    * Quota exceeded for metric: ...requests, limit: 0
+    Please retry in 49.816000791s.
+    ```
+- **진단 확정**: **Gemini 무료 티어 RPM(분당 요청) 한도 초과**. 정책 1개당 LLM 2회 호출(`_llm_summary` + `_llm_items`) × 30 = 60회를 throttling 없이 연속 호출 → 분당 ~15회 한도 초과 → 6번째 정책부터 429 fail. 첫 5개도 응답이 빈 dict였을 가능성(메시지 limit: 0 보면 신규 키가 quota 매우 낮은 상태일 수도).
+- **R2.7.6 fix**:
+  - `normalize.py` `_call_llm` — 429/quota 메시지 catch + `retry_delay` 정규식 파싱(`retry.*?(\d+)s`) + 그만큼 sleep + 최대 2회 재시도. 비-429 에러는 즉시 fail.
+  - `normalize.py` `normalize_all` — 정책 사이 5초 sleep 추가(`throttle_sec=5.0`). 분당 약 12회 호출 → RPM 안전권. 30개 정책 ≈ 2.5분.
+  - `crawl.py` `iter_services` `client_filter_user_type` — 콤마 분리 `'개인,가구'` 형태 입력 지원, OR 매치(any). 단일 값 substring 매치 + 콤마 분리 list 둘 다.
+  - `.github/workflows/crawl-policies.yml` `user_type` input default를 `'개인,가구'`로 변경.
+- **검증 후 예상**:
+  - LLM 0% → 정상화 (RPM throttling으로 429 회피)
+  - 부처 다양성 확보 (보건복지부 가구 단위 정책 포함)
+  - 30개 정책 빌드 시간 ~2.5분
+- **사용자 추가 옵션** (우리 fix 안 풀리면): https://aistudio.google.com/apikey → 새 키 클릭 → 사용량/한도 확인. 무료 한도 진짜 0이면 Google Cloud에서 결제 활성화(여전히 무료 한도 내 사용은 0원).
+

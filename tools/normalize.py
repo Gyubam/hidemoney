@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 from crawl import RawPolicy
@@ -251,20 +252,51 @@ def _parse_json_loose(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _call_llm(client: Any, prompt: str, *, service_id: str, task: str) -> Dict[str, Any]:
-    try:
-        resp = client._model.generate_content(  # noqa: SLF001
-            prompt,
-            generation_config={
-                "temperature": 0.3,
-                "response_mime_type": "application/json",
-            },
-        )
-        text = (resp.text or "").strip()
-        return _parse_json_loose(text) or {}
-    except Exception as e:
-        log.warning("LLM %s failed for %s: %s", task, service_id, e)
-        return {}
+# 'Please retry in 49.816000791s.' / 'retry_delay { seconds: 49 }' / 'Retry in 30s' 모두 커버
+_RETRY_DELAY_PATTERN = re.compile(r"retry[^0-9]{0,40}(\d+)", re.IGNORECASE)
+
+
+def _call_llm(
+    client: Any,
+    prompt: str,
+    *,
+    service_id: str,
+    task: str,
+    max_retry: int = 2,
+) -> Dict[str, Any]:
+    """Gemini 호출 + 429 (RateLimit) 발생 시 retry_delay 만큼 wait 후 재시도.
+
+    무료 티어 RPM(분당 ~15회) 한도 흔히 초과. 호출 자체는 정상이라
+    잠시 기다렸다가 재시도하면 통상 통과.
+    """
+    for attempt in range(max_retry + 1):
+        try:
+            resp = client._model.generate_content(  # noqa: SLF001
+                prompt,
+                generation_config={
+                    "temperature": 0.3,
+                    "response_mime_type": "application/json",
+                },
+            )
+            text = (resp.text or "").strip()
+            return _parse_json_loose(text) or {}
+        except Exception as e:
+            msg = str(e)
+            is_rate_limit = "429" in msg or "exceeded" in msg.lower() or "quota" in msg.lower()
+            if is_rate_limit and attempt < max_retry:
+                m = _RETRY_DELAY_PATTERN.search(msg)
+                wait = int(m.group(1)) if m else 30
+                wait = min(max(wait + 2, 15), 65)  # 안전 마진 + 상한
+                log.info(
+                    "rate limited on %s/%s — wait %ds (attempt %d/%d)",
+                    task, service_id, wait, attempt + 1, max_retry + 1,
+                )
+                time.sleep(wait)
+                continue
+            # 비-429 에러 또는 retry 소진
+            log.warning("LLM %s failed for %s: %s", task, service_id, msg[:200])
+            return {}
+    return {}
 
 
 def _llm_summary(raw: RawPolicy, *, client: Any) -> Dict[str, Any]:
@@ -389,9 +421,17 @@ def normalize_all(
     raws: List[RawPolicy],
     *,
     llm_client: Any = None,
+    throttle_sec: float = 5.0,
 ) -> List[Dict[str, Any]]:
+    """LLM 호출 사이 throttle_sec 만큼 sleep해 RPM 한도 회피.
+
+    정책 1개당 LLM 2회(_llm_summary + _llm_items) 호출. 무료 티어 RPM ~15회 안전권.
+    """
     out = []
+    use_throttle = llm_client is not None and throttle_sec > 0
     for i, raw in enumerate(raws, 1):
         log.info("normalizing %d/%d — %s", i, len(raws), raw.service_id)
         out.append(normalize(raw, llm_client=llm_client))
+        if use_throttle and i < len(raws):
+            time.sleep(throttle_sec)
     return out
