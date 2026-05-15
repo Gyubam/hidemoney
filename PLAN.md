@@ -886,3 +886,7 @@
   - **설정 리스트 카드**: 5개 항목 (🔔 알림, 👨‍👩‍👧 가족진단[프리미엄 뱃지], 💌 친구초대, 📋 개인정보, ✉️ 의견) — 토스 리스트 스타일, 항목 사이 indent divider
 - **빌드/설치 확인** ✅ (35s)
 - **다음**: 마이 톤 피드백 → 정책 데이터 파이프라인 (GitHub Actions 크롤러) → Firebase 연동
+- **GitHub 연동 + 초기 푸시 완료** ✅ — https://github.com/Gyubam/hidemoney.git (main 브랜치)
+  - Android 표준 .gitignore (build/.gradle/.kotlin/local.properties/keystore/.claude/google-services.json 제외)
+  - 첫 커밋: 5개 화면 + 디자인 시스템 + 앱 아이콘 / appIcon.png/appIcon2.png 원본 디자인 자산도 포함
+  - 이후 PLAN.md 진행 일지 업데이트마다 커밋 → 푸시 패턴으로 운영
