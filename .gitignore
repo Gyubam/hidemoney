@@ -1,0 +1,61 @@
+# ============================================
+# Android / Kotlin / Gradle
+# ============================================
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Build outputs
+bin/
+gen/
+out/
+release/
+build/
+.gradle/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+
+# Local configs (SDK path 등)
+local.properties
+
+# Android Studio
+captures/
+.navigation/
+
+# Keystore (절대 커밋 금지)
+*.jks
+*.keystore
+keystore.properties
+
+# Firebase (나중에 추가될 때 자동 제외)
+google-services.json
+
+# Lint
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/
+
+# ============================================
+# IntelliJ / Android Studio
+# ============================================
+*.iml
+.idea/
+!.idea/codeStyles/
+!.idea/runConfigurations/
+
+# ============================================
+# Claude Code (로컬 작업 설정)
+# ============================================
+.claude/
+
+# ============================================
+# OS / Misc
+# ============================================
+.DS_Store
+Thumbs.db
+*.log
