@@ -136,9 +136,16 @@ app/src/main/kotlin/com/hiddensubsidy/app/
     └── NotificationPermission.kt        # Android 13+ POST_NOTIFICATIONS launcher
 
 docs/
-└── policies.json                        # SampleData.allPolicies export (19 정책, 12.5KB UTF-8)
+└── policies.json                        # SampleData export + 빌드 보강 (19 정책 + difficultyScore/roiScore)
 
-.github/workflows/                       # (3단계에서 추가 예정)
+tools/                                   # GitHub Actions 빌드 도구 (Python 3.11)
+├── schema.py                            # Pydantic Policy/EligibilityRule (Kotlin 모델 미러)
+├── summarize.py                         # Gemini Flash 호출 + 화이트리스트 머지
+├── build_policies.py                    # orchestrator (load → enrich → validate → save)
+└── requirements.txt
+
+.github/workflows/
+└── crawl-policies.yml                   # cron 0 18 * * * + workflow_dispatch, secrets.GEMINI_API_KEY 주입
 ```
 
 ---

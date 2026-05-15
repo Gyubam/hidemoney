@@ -1349,3 +1349,38 @@ keytool -genkey -v -keystore hidemoney-release.jks `
   3. 1~2분 후 `https://gyubam.github.io/hidemoney/policies.json` 접근 가능
   4. 앱 재진입 시 logcat `policies-fetch`에서 "Refreshed from remote: 19" 확인
 - **다음 라운드 (3단계)**: GitHub Actions 크론 워크플로우 — 정부24/복지로 크롤링 + Gemini Flash로 요약·태깅·ROI 점수 + `docs/policies.json` 자동 commit/push
+
+### 2026-05-15 (R2 — GitHub Actions 빌드 파이프라인 + Gemini Flash 보강)
+
+- **환경 셋업 (집 PC)**: 저장소 clone(`whatsapp/hidemoney/`), GitHub Pages 활성화 직후 `https://gyubam.github.io/hidemoney/policies.json` 200 OK / 19 정책 fetch 확인.
+- **🔐 보안 사고 대응**: Gemini API key가 채팅에 평문 노출됨 → PLAN.md 사고대응 절차대로 **즉시 폐기 + 신규 발급 + GitHub Secret(`GEMINI_API_KEY`)에만 등록**. 새 키는 채팅에 보내지 않음.
+- **robots.txt 사전 점검**:
+  - `gov.kr` → `Disallow: /` 전역 금지 (보조금 검색 페이지 크롤링 불가)
+  - `bokjiro.go.kr` → robots.txt 미제공 (서버 에러 HTML)
+  - 결과: PLAN 가정 변경. **R2는 인프라+Gemini 검증까지만**, 실 데이터 소스(정부24 OpenAPI 또는 복지로)는 **R2.5로 분리**.
+- **Python 도구 일식** (`tools/`):
+  - `schema.py` — Pydantic Policy/EligibilityRule/DocumentRequirement (Kotlin 모델 미러, `extra="allow"`로 Gemini 신규 필드 안전 수용)
+  - `summarize.py` — `GeminiClient` (지연 import) + `enrich_policy` 화이트리스트 머지(현재 `summary`만), 마크다운 펜스 관용 파싱, 실패 시 원본 반환(빌드 절대 안 깨짐)
+  - `build_policies.py` — orchestrator (`load → enrich_local → enrich_llm → validate → write_if_changed`)
+    - 결정론적 보강: `daysLeft` 재계산 + `difficultyScore`(문서·절차·자격 항목 가중 1~10) + `roiScore`(log10(amount)·15 − 난이도 페널티, 0~100)
+    - `--enrich` 플래그로 LLM on/off, `--today YYYY-MM-DD`로 CI 재현성 확보
+  - `requirements.txt` — `google-generativeai==0.8.3` / `pydantic==2.9.2` / `python-dateutil==2.9.0`
+- **GitHub Actions 워크플로우** (`.github/workflows/crawl-policies.yml`):
+  - cron `0 18 * * *` (UTC 18 = KST 03) + `workflow_dispatch` (수동 실행 입력 `enrich=true/false`)
+  - `permissions: contents: write` + `concurrency.group: crawl-policies` (중복 실행 방지)
+  - `actions/setup-python@v5` 3.11 + pip 캐시 + 의존성 install → `python build_policies.py --enrich`
+  - 변경 있을 때만 `github-actions[bot]` 계정으로 commit + push (`docs/policies.json`만 add)
+- **로컬 검증 결과** (`.venv` Python 3.12.10):
+  - LLM 미사용 dry run (`--today 2026-05-15`) → 19/19 검증 통과, 신규 필드 정상 채움
+  - 톱 ROI 후보: 출산장려금 77 / 통신비 감면 70 / 청년 월세 60 등
+  - 기존 필드 1개도 안 깨짐, schema strict 검증 통과
+- **`.gitignore` 보강**: `__pycache__/`, `.venv/`, `.env*`, `*.secret` 추가 (Python 도구·키 노출 방지)
+- **클라 호환성 확인**: `RemotePolicyRepository`/`CachedPolicyRepository`/`MainActivity` 모두 `Json { ignoreUnknownKeys = true }` 설정돼 있어 `difficultyScore`/`roiScore` 추가해도 deserialization 절대 안 깨짐.
+- **남은 사용자 액션 (R2 마무리)**:
+  1. PLAN/도구/워크플로우/갱신된 `docs/policies.json` commit + push (Claude 명시 요청 대기)
+  2. push 후 https://github.com/Gyubam/hidemoney/actions → **`정책 자동 빌드`** → **Run workflow** (`enrich=true`) → 약 1분 후 commit 자동 생성 확인 → Pages 재빌드 → 앱에서 `policies-fetch` 로그 새 데이터 확인
+- **다음 라운드 (R2.5)**: 실제 데이터 소스 연결 옵션
+  - (a) **공공데이터포털 `data.go.kr`** `보조금24 정부서비스 목록` OpenAPI 신청(무료, 자동승인 인증키 5분) — **합법·안정 톱픽**
+  - (b) 복지로 사이트 직접 fetch (robots.txt 없으니 가능, 다만 SPA·세션 이슈 가능)
+  - (c) 둘 다 — OpenAPI를 기준, 복지로는 카테고리 보강용
+  - 결정 후 `tools/crawl.py` 추가하고 `build_policies.py`에 입력 단계 끼우면 됨
