@@ -121,14 +121,18 @@ class GovApiClient:
         per_page: int = 100,
         user_type: Optional[str] = None,
         service_field: Optional[str] = None,
+        client_filter_user_type: Optional[str] = None,
     ) -> Iterable[Dict[str, Any]]:
         """모든 서비스를 페이징으로 yield. limit 도달 시 조기 종료.
 
-        user_type: 사용자구분 LIKE 필터 (예: '개인'). 정부24가 부처별로 정렬된 결과를
-        반환하기 때문에, 필터 없이 page=1만 받으면 특정 부처(예: 해양수산부)에 편향됨.
-        개인 사용자 대상 정책만 받으려면 user_type='개인' 권장.
+        user_type: 서버 측 cond[사용자구분::LIKE] 필터. 한국어 키 URL 인코딩 문제로
+        실제로는 동작 안 할 가능성 있음(R2.7.5 검증).
+        client_filter_user_type: 응답 받은 후 클라이언트 측에서 필터링 — 확실히 동작.
+        예: '개인' → '사용자구분' 필드에 '개인' 포함된 행만 yield.
+        둘 다 동시 사용 가능 (서버 필터 시도 + 클라 보강).
         """
         fetched = 0
+        scanned = 0
         page = 1
         while True:
             body = self.list_services(
@@ -141,15 +145,23 @@ class GovApiClient:
             if not data:
                 break
             for row in data:
+                scanned += 1
+                if client_filter_user_type:
+                    row_value = str(row.get("사용자구분") or "")
+                    if client_filter_user_type not in row_value:
+                        continue
                 yield row
                 fetched += 1
                 if limit is not None and fetched >= limit:
+                    log.info("client filter: %d yielded / %d scanned", fetched, scanned)
                     return
             total_count = int(body.get("totalCount") or 0)
-            if fetched >= total_count:
+            if scanned >= total_count:
                 break
             page += 1
             time.sleep(self.REQUEST_GAP_SEC)
+        if client_filter_user_type:
+            log.info("client filter done: %d yielded / %d scanned", fetched, scanned)
 
     # ────────────────────────────────────────────────────────────────────────
     # serviceDetail
@@ -202,13 +214,15 @@ def fetch_policies(
 ) -> List[RawPolicy]:
     """limit 개수의 정책에 대해 list+detail+conditions 묶음을 받아 리스트로 반환.
 
-    user_type: '개인' 등 사용자구분 필터 (None=필터 없음).
+    user_type: 사용자구분 필터. 서버 측 cond[사용자구분::LIKE]와 클라이언트 측 필터
+    둘 다 적용 — 서버 필터가 한국어 키 인코딩 문제로 무력해도 클라 필터가 잡아냄.
     """
     raws: List[RawPolicy] = []
     iterator = client.iter_services(
         limit=limit,
-        per_page=per_page,
+        per_page=max(per_page, 100),  # 클라 필터로 많이 걸러질 수 있어 더 큰 페이지
         user_type=user_type,
+        client_filter_user_type=user_type,
     )
     for row in iterator:
         svc_id = str(row.get("서비스ID") or "").strip()
