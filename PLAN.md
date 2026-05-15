@@ -139,6 +139,124 @@ adb devices         # SM-A356N device 보이면 OK
 
 ---
 
+## 🗺️ 출시까지의 길
+
+### 라운드별 추천 순서 (집에서 시작 후)
+
+| 라운드 | 작업 | 사용자 개입 | 예상 |
+|---|---|---|---|
+| **R1** | GitHub Pages 활성화 + remote fetch 검증 | Settings → Pages 클릭 | 5분 |
+| **R2** | GitHub Actions 크롤러 + Gemini Flash (3단계) | Gemini API key 발급 + GitHub Secret 등록 | 2~3 세션 |
+| **R3** | 자동화 데이터 검증·튜닝 + WorkManager 알림 스케줄링 | 없음 | 1~2 세션 |
+| **R4** | Firebase 연동 (Auth + Firestore + FCM) | Firebase 콘솔 + `google-services.json` | 2~3 세션 |
+| **R5** | 폴리시 (즐겨찾기 목록 화면 / 수령 확인 토글 / 신청→받음 흐름) | 없음 | 1~2 세션 |
+| **R6** | 출시 준비 (Phase 4) | keystore + Play Console 등록(25 USD) + 정책 호스팅 | 1~2 세션 |
+| **R7** | 내부/베타 테스트 + 버그 수정 | Play Console closed beta | 지속 |
+| **R8** | 정식 출시 | Play Console production | 1 세션 |
+
+**총: 약 10~14 세션 후 정식 출시**. 사용자 개입은 콘솔 설정·결제 위주.
+
+### 🔥 R4. Firebase 통합 절차
+
+#### 1) Firebase 콘솔 (사용자)
+1. https://console.firebase.google.com → "프로젝트 추가" → 이름 `숨은지원금` → **Google Analytics OFF** (Spark 무료 티어 유지)
+2. Android 앱 추가 → 패키지명 `com.hiddensubsidy.app.debug` (디버그용 먼저). 나중에 release용 `com.hiddensubsidy.app` 별도 추가
+3. SHA-1 지문 등록 (디버그용 — Google Sign-In 위해 필수):
+   ```bash
+   keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+   ```
+4. `google-services.json` 다운로드 → 채팅에 첨부 또는 `app/` 폴더에 직접 둠
+5. **콘솔에서 기능 활성화**:
+   - Auth → Sign-in method → Google 활성화
+   - Firestore → 데이터베이스 만들기 → 프로덕션 모드 → asia-northeast3(서울)
+   - Cloud Messaging → 자동 활성화
+
+#### 2) Gradle 설정 (Claude가 처리)
+- 프로젝트 `build.gradle.kts`: `alias(libs.plugins.google.services) apply false`
+- `app/build.gradle.kts`: plugin apply + Firebase BOM
+- `libs.versions.toml`: `firebase-bom = "33.x.x"` + `google-services = "4.4.x"`
+
+#### 3) 기능별 SDK + 코드 (Claude가 처리)
+- **Auth (Google Sign-In)**: `firebase-auth-ktx` + `play-services-auth`
+  - `AuthRepository` + `LoginScreen` + Splash에서 자동 로그인 체크
+  - 로그아웃 → 온보딩 리셋
+- **Firestore**: `firebase-firestore-ktx`
+  - `users/{uid}` 문서: profile 필드 + favorites 배열
+  - UserPrefs / FavoritesRepository → Firestore migration (오프라인 캐시 활용)
+- **FCM**: `firebase-messaging-ktx`
+  - `MessagingService` + 토픽 구독 (`weekly-deadline`, `region-seoul` 등)
+  - 매주 일요일 큐레이션 푸시 (FCM topic + Cloud Function 또는 Actions cron)
+
+#### 4) 보안 룰 (Firestore Rules)
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    match /policies/{id} {
+      allow read: if true;  // 공개 정책 데이터
+      allow write: if false; // 크롤러는 GitHub Actions에서만
+    }
+  }
+}
+```
+
+---
+
+### 🚀 R6. Phase 4 출시 절차
+
+#### 1) Keystore 생성 (사용자, JDK keytool)
+```bash
+# 프로젝트 root에서
+keytool -genkey -v -keystore hidemoney-release.jks `
+  -keyalg RSA -keysize 2048 -validity 10000 `
+  -alias hidemoney
+```
+- 비밀번호 2개 입력 (keystore + alias) — **절대 잃어버리면 안 됨, 이후 업데이트 영구 불가**
+- `.gitignore`에 이미 `*.jks` 포함됨
+- `keystore.properties` 생성 (역시 gitignore됨):
+  ```
+  storePassword=...
+  keyPassword=...
+  keyAlias=hidemoney
+  storeFile=../hidemoney-release.jks
+  ```
+- **백업**: 외장 SSD/Google Drive에 keystore + properties 둘 다 안전 보관
+
+#### 2) 서명 빌드 설정 (Claude가 처리)
+- `app/build.gradle.kts`: `signingConfigs { release { ... } }` + release buildType 적용
+- ProGuard 룰 보강 (kotlinx-serialization, Ktor reflection class keep)
+- `./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab`
+
+#### 3) Play Console 등록 (사용자, 25 USD 일회성)
+1. https://play.google.com/console → 가입 + 25 USD 결제 (개발자 계정)
+2. "앱 만들기" → 앱 이름 `숨은지원금` / 기본 언어 한국어 / 무료
+3. **메인 스토어 등록정보 (Claude가 초안 제공)**:
+   - 짧은 설명 (80자): "정부 지원금 추천 — 못 받은 돈부터 발견"
+   - 자세한 설명: 차별화 3가지 + 0원 운영 + 토스 톤 가치 강조
+   - **앱 아이콘 512×512** (현재 `appIcon2.png`에서 변환 — Claude 처리)
+   - **피처 그래픽 1024×500** (Canva·Figma)
+   - **스크린샷 최소 2장** (홈/캘린더/마이/온보딩 4~5장 권장) — 폰 캡처 또는 Compose Preview
+4. **앱 콘텐츠 (필수)**:
+   - **개인정보처리방침 URL** — `docs/privacy.md` 작성 후 GitHub Pages 호스팅 (Claude가 초안 작성)
+   - 광고 X / 인앱결제 X (MVP)
+   - 데이터 안전성: 사용자 데이터 수집 항목 명시 (프로필·즐겨찾기·기기 ID)
+   - 만 13세 미만 대상 아님
+5. **출시 단계**:
+   - **내부 테스트** (사용자 본인 + 지인 1~2명) → 1~2주
+   - **Closed beta** (지인 5~20명) → 2~4주, 피드백 수집
+   - **Production**: AAB 업로드 → 심사 1~3일 → 출시
+
+#### 4) 출시 후
+- Play Console에서 통계·크래시·리뷰 모니터링
+- Firebase Crashlytics 추가 검토 (Spark 무료)
+- 첫 1000 다운로드까지 0원 유지 가능 (Spark 한도)
+- 사용자 증가 시 Firestore 쿼터 모니터링 → 필요 시 Blaze 전환 검토
+
+---
+
 ## 0. 한 줄 포지션
 
 > "검색하는 앱"이 아니라 **"받게 만드는 앱"**
