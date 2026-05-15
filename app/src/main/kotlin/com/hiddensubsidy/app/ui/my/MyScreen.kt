@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import com.hiddensubsidy.app.data.SampleData
 import com.hiddensubsidy.app.data.model.MySummary
 import com.hiddensubsidy.app.data.model.UserProfile
-import com.hiddensubsidy.app.data.rememberUserProfile
 import com.hiddensubsidy.app.ui.components.IconBubble
 import com.hiddensubsidy.app.ui.components.formatAmount
 import com.hiddensubsidy.app.ui.theme.AppTheme
@@ -46,6 +45,7 @@ private const val SIDE = 16
 
 @Composable
 fun MyScreen(
+    profile: UserProfile,
     summary: MySummary = SampleData.mySummary,
     onEditProfile: () -> Unit = {},
     onNotificationSettings: () -> Unit = {},
@@ -54,7 +54,6 @@ fun MyScreen(
     onFeedback: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
-    val profile = rememberUserProfile()
 
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {
         LazyColumn(

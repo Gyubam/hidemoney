@@ -1,0 +1,383 @@
+[
+    {
+        "id": "youth-rent",
+        "title": "청년 월세 지원",
+        "amount": 600000,
+        "deadline": "2026-05-27",
+        "daysLeft": 12,
+        "category": "주거",
+        "summary": "만 19~34세 청년 무주택자에게 월 최대 20만원, 12개월간 지원해드려요.",
+        "period": "최대 12개월 · 월 20만원",
+        "eligibility": [
+            "만 19~34세 청년",
+            "무주택자",
+            "본인 소득 중위 100% 이하",
+            "가구 중위소득 60% 이하"
+        ],
+        "documents": [
+            {
+                "name": "주민등록등본",
+                "sourceUrl": "https://www.gov.kr"
+            },
+            {
+                "name": "임대차계약서"
+            },
+            {
+                "name": "소득금액증명원",
+                "sourceUrl": "https://www.hometax.go.kr"
+            },
+            {
+                "name": "무주택 확인서",
+                "sourceUrl": "https://www.gov.kr"
+            }
+        ],
+        "procedure": [
+            "복지로 회원가입 / 로그인",
+            "복지서비스 → 주거지원 → 청년월세 메뉴 선택",
+            "신청서 작성 + 서류 업로드",
+            "지자체 심사 (평균 30일)",
+            "선정 시 본인 계좌로 매월 입금"
+        ],
+        "applicationOrg": "복지로",
+        "applicationUrl": "https://www.bokjiro.go.kr",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 34
+        }
+    },
+    {
+        "id": "birth",
+        "title": "출산장려금",
+        "amount": 2000000,
+        "deadline": "2026-05-18",
+        "daysLeft": 3,
+        "category": "출산",
+        "summary": "첫 자녀 출산 시 일시금 200만원을 지자체에서 지급해요.",
+        "period": "출생일 기준 1년 이내 신청",
+        "eligibility": [
+            "출산일 기준 해당 지자체 6개월 이상 거주",
+            "출생신고 완료",
+            "부모 중 1인 주민등록 유지"
+        ],
+        "documents": [
+            {
+                "name": "출생증명서"
+            },
+            {
+                "name": "주민등록등본",
+                "sourceUrl": "https://www.gov.kr"
+            },
+            {
+                "name": "통장 사본"
+            }
+        ],
+        "procedure": [
+            "주민센터 방문 또는 정부24 온라인 신청",
+            "구비서류 제출",
+            "지자체 확인 후 일시금 지급 (평균 14일)"
+        ],
+        "applicationOrg": "정부24",
+        "applicationUrl": "https://www.gov.kr",
+        "eligibilityRule": {
+            "requiresChildren": true
+        }
+    },
+    {
+        "id": "telecom",
+        "title": "통신비 감면",
+        "amount": 180000,
+        "deadline": "2026-05-22",
+        "daysLeft": 7,
+        "category": "생활",
+        "summary": "기초생활수급자·차상위계층 대상 이동통신 요금 월 최대 1.5만원 감면.",
+        "period": "월 최대 15,000원 · 상시",
+        "eligibility": [
+            "기초생활수급자 또는 차상위계층",
+            "본인 명의 이동통신 가입"
+        ],
+        "documents": [
+            {
+                "name": "수급자 증명서",
+                "sourceUrl": "https://www.gov.kr"
+            }
+        ],
+        "procedure": [
+            "통신사 고객센터 또는 대리점 방문",
+            "수급자 증명서 제출",
+            "다음 달 청구서부터 자동 감면"
+        ],
+        "applicationOrg": "통신3사",
+        "applicationUrl": "https://www.welfare.go.kr",
+        "isEligible": false
+    },
+    {
+        "id": "scholarship",
+        "title": "주거안정 장학금",
+        "amount": 800000,
+        "deadline": "2026-05-27",
+        "daysLeft": 12,
+        "category": "교육",
+        "summary": "지방 출신 대학생의 수도권 거주 부담을 줄이기 위한 장학금이에요.",
+        "period": "학기당 80만원",
+        "eligibility": [
+            "재학 중인 대학생",
+            "원거주지가 수도권 외 지역",
+            "성적 평점 3.0 이상"
+        ],
+        "documents": [
+            {
+                "name": "재학증명서"
+            },
+            {
+                "name": "성적증명서"
+            },
+            {
+                "name": "주민등록초본",
+                "sourceUrl": "https://www.gov.kr"
+            }
+        ],
+        "procedure": [
+            "한국장학재단 홈페이지 접속",
+            "주거안정 장학금 신청",
+            "서류 업로드",
+            "심사 후 학기 시작 전 지급"
+        ],
+        "applicationOrg": "한국장학재단",
+        "applicationUrl": "https://www.kosaf.go.kr",
+        "eligibilityRule": {
+            "minAge": 18,
+            "maxAge": 27,
+            "requiresOccupation": [
+                "학생"
+            ]
+        }
+    },
+    {
+        "id": "youth-rent-loan",
+        "title": "청년 전월세 보증금 대출",
+        "amount": 200000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "주거",
+        "summary": "만 34세 이하 청년에게 최대 2억원, 연 1.5%대 저리 대출.",
+        "period": "최대 2억원 · 연 1.5%",
+        "applicationOrg": "주택도시기금",
+        "applicationUrl": "https://nhuf.molit.go.kr",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 34
+        }
+    },
+    {
+        "id": "newlywed-loan",
+        "title": "신혼부부 전세자금 대출",
+        "amount": 300000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "주거",
+        "summary": "결혼 7년 이내 부부에게 최대 3억원, 연 1.2%대 전세대출.",
+        "period": "최대 3억원 · 연 1.2%",
+        "applicationOrg": "주택도시기금",
+        "applicationUrl": "https://nhuf.molit.go.kr",
+        "eligibilityRule": {
+            "requiresMarried": true
+        }
+    },
+    {
+        "id": "mapo-movein",
+        "title": "마포구 청년 정착지원금",
+        "amount": 300000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "주거",
+        "summary": "마포구 전입 청년에게 일시금 30만원 지급 (1년 이상 거주 조건).",
+        "period": "1회 30만원",
+        "applicationOrg": "마포구청",
+        "applicationUrl": "https://www.mapo.go.kr",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 34,
+            "regions": [
+                "서울"
+            ]
+        }
+    },
+    {
+        "id": "unemployment-benefit",
+        "title": "실업급여 (구직급여)",
+        "amount": 8640000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "생활",
+        "summary": "비자발적 퇴직자에게 평균임금 60%를 최대 270일간 지급.",
+        "period": "최대 9개월",
+        "applicationOrg": "고용24",
+        "applicationUrl": "https://www.work24.go.kr"
+    },
+    {
+        "id": "jobseeker-support",
+        "title": "국민취업지원제도",
+        "amount": 3000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "생활",
+        "summary": "구직자에게 6개월 동안 월 50만원 + 취업활동비 지원.",
+        "period": "월 50만원 · 6개월",
+        "applicationOrg": "고용24",
+        "applicationUrl": "https://www.work24.go.kr",
+        "eligibilityRule": {
+            "requiresOccupation": [
+                "구직 중"
+            ]
+        }
+    },
+    {
+        "id": "training-card",
+        "title": "국민내일배움카드",
+        "amount": 5000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "교육",
+        "summary": "5년간 최대 500만원, 직업훈련 수강료 지원.",
+        "period": "5년 최대 500만원",
+        "applicationOrg": "HRD-Net",
+        "applicationUrl": "https://www.hrd.go.kr"
+    },
+    {
+        "id": "pregnancy-voucher",
+        "title": "임신·출산 진료비",
+        "amount": 1000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "출산",
+        "summary": "임산부에게 100만원 (다태아 140만원) 국민행복카드 지원.",
+        "period": "100만원 · 카드 형태",
+        "applicationOrg": "정부24",
+        "applicationUrl": "https://www.gov.kr"
+    },
+    {
+        "id": "first-meet",
+        "title": "첫만남 이용권",
+        "amount": 2000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "출산",
+        "summary": "출생아 1인당 200만원 바우처 지급.",
+        "period": "1회 200만원",
+        "applicationOrg": "정부24",
+        "applicationUrl": "https://www.gov.kr",
+        "eligibilityRule": {
+            "requiresChildren": true
+        }
+    },
+    {
+        "id": "parent-subsidy",
+        "title": "부모급여",
+        "amount": 8400000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "출산",
+        "summary": "만 0세 월 100만원, 만 1세 월 50만원 현금 지급.",
+        "period": "월 100만원 · 0~1세",
+        "applicationOrg": "복지로",
+        "applicationUrl": "https://www.bokjiro.go.kr",
+        "eligibilityRule": {
+            "requiresChildren": true
+        }
+    },
+    {
+        "id": "newlywed-hope",
+        "title": "신혼희망타운",
+        "amount": 0,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "주거",
+        "summary": "신혼·예비신혼부부 대상 분양·임대 우선공급.",
+        "period": "분양가 시세 70%",
+        "applicationOrg": "LH 청약센터",
+        "applicationUrl": "https://apply.lh.or.kr",
+        "eligibilityRule": {
+            "requiresMarried": true
+        }
+    },
+    {
+        "id": "didimdol-loan",
+        "title": "신혼부부 디딤돌 대출",
+        "amount": 400000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "주거",
+        "summary": "결혼 7년 이내 부부에게 최대 4억원 주택구입자금 대출.",
+        "period": "최대 4억원 · 연 1.9%",
+        "applicationOrg": "주택도시기금",
+        "applicationUrl": "https://nhuf.molit.go.kr",
+        "eligibilityRule": {
+            "requiresMarried": true
+        }
+    },
+    {
+        "id": "startup-school",
+        "title": "청년창업사관학교",
+        "amount": 100000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "창업",
+        "summary": "만 39세 이하 청년창업가에게 최대 1억원 + 1년 보육.",
+        "period": "1억원 + 1년 보육",
+        "applicationOrg": "K-Startup",
+        "applicationUrl": "https://www.k-startup.go.kr",
+        "eligibilityRule": {
+            "maxAge": 39
+        }
+    },
+    {
+        "id": "youth-startup-fund",
+        "title": "청년창업지원금",
+        "amount": 10000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "창업",
+        "summary": "예비창업자·초기 창업자에게 사업화 자금 1000만원.",
+        "period": "1회 1000만원",
+        "applicationOrg": "K-Startup",
+        "applicationUrl": "https://www.k-startup.go.kr",
+        "eligibilityRule": {
+            "maxAge": 39
+        }
+    },
+    {
+        "id": "next-mutual-aid",
+        "title": "청년내일채움공제",
+        "amount": 12000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "청년",
+        "summary": "중소기업 취업 청년이 2년 적립 시 1200만원 + 기업·정부 매칭.",
+        "period": "2년 1200만원",
+        "applicationOrg": "고용24",
+        "applicationUrl": "https://www.work24.go.kr",
+        "eligibilityRule": {
+            "minAge": 15,
+            "maxAge": 34,
+            "requiresOccupation": [
+                "직장인"
+            ]
+        }
+    },
+    {
+        "id": "yda-account",
+        "title": "청년 도약 계좌",
+        "amount": 50000000,
+        "deadline": "상시",
+        "daysLeft": 90,
+        "category": "청년",
+        "summary": "5년간 매월 70만원 납입 시 정부 매칭 + 비과세.",
+        "period": "5년 최대 5천만원",
+        "applicationOrg": "은행 (취급기관)",
+        "applicationUrl": "https://www.fss.or.kr",
+        "eligibilityRule": {
+            "minAge": 19,
+            "maxAge": 34
+        }
+    }
+]

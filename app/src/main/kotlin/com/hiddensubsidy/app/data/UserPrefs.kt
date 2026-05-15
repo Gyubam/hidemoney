@@ -20,6 +20,18 @@ object UserPrefs {
             incomeMonthly = if (p.contains("income_monthly")) p.getLong("income_monthly", 0L) else null,
         )
     }
+
+    fun save(context: Context, profile: UserProfile) {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        p.edit().apply {
+            if (profile.age != null) putInt("age", profile.age) else remove("age")
+            if (profile.region != null) putString("region", profile.region) else remove("region")
+            if (profile.occupation != null) putString("occupation", profile.occupation) else remove("occupation")
+            if (profile.married != null) putBoolean("married", profile.married) else remove("married")
+            if (profile.hasChildren != null) putBoolean("has_children", profile.hasChildren) else remove("has_children")
+            if (profile.incomeMonthly != null) putLong("income_monthly", profile.incomeMonthly) else remove("income_monthly")
+        }.apply()
+    }
 }
 
 @Composable

@@ -280,12 +280,14 @@ private fun StepRow(
 // =============================================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProfileInputPage(
+internal fun ProfileInputPage(
     topInset: androidx.compose.ui.unit.Dp,
     profile: UserProfile,
     onChange: (UserProfile) -> Unit,
     onBack: () -> Unit,
     onSubmit: () -> Unit,
+    title: String = "딱 두 가지만\n알려주세요",
+    submitLabel: String = "내가 받을 지원금 보기",
 ) {
     val colors = AppTheme.colors
     var openSheet by remember { mutableStateOf<PickerSheet?>(null) }
@@ -308,7 +310,7 @@ private fun ProfileInputPage(
         ) {
             Spacer(Modifier.height(20.dp))
             Text(
-                text = "딱 두 가지만\n알려주세요",
+                text = title,
                 style = MaterialTheme.typography.headlineLarge,
                 color = colors.textPrimary,
             )
@@ -377,7 +379,7 @@ private fun ProfileInputPage(
 
         Box(modifier = Modifier.padding(horizontal = 20.dp)) {
             CtaWithReadiness(
-                text = "내가 받을 지원금 보기",
+                text = submitLabel,
                 enabled = ready,
                 onClick = onSubmit,
             )

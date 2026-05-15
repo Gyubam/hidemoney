@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,7 +55,9 @@ private const val SIDE = 16
 @Composable
 fun PolicyDetailScreen(
     policy: Policy,
+    isFavorite: Boolean,
     onBack: () -> Unit,
+    onToggleFavorite: () -> Unit,
 ) {
     val colors = AppTheme.colors
     val context = LocalContext.current
@@ -68,7 +71,16 @@ fun PolicyDetailScreen(
                     bottom = 120.dp,
                 ),
             ) {
-                item { DetailTopBar(onBack = onBack) }
+                item {
+                    DetailTopBar(
+                        onBack = onBack,
+                        isFavorite = isFavorite,
+                        onToggleFavorite = onToggleFavorite,
+                        onShare = {
+                            com.hiddensubsidy.app.util.ShareHelper.inviteFriends(context)
+                        },
+                    )
+                }
 
                 // Hero (제목 + 금액)
                 item { HeroSection(policy = policy) }
@@ -147,7 +159,12 @@ fun PolicyDetailScreen(
 // TopBar
 // =============================================================
 @Composable
-private fun DetailTopBar(onBack: () -> Unit) {
+private fun DetailTopBar(
+    onBack: () -> Unit,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onShare: () -> Unit,
+) {
     val colors = AppTheme.colors
     Row(
         modifier = Modifier
@@ -157,14 +174,21 @@ private fun DetailTopBar(onBack: () -> Unit) {
     ) {
         TopBarIcon(icon = Icons.AutoMirrored.Rounded.ArrowBack, onClick = onBack)
         Spacer(Modifier.weight(1f))
-        TopBarIcon(icon = Icons.Rounded.StarBorder)
-        TopBarIcon(icon = Icons.Rounded.IosShare)
+        TopBarIcon(
+            icon = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+            onClick = onToggleFavorite,
+            tint = if (isFavorite) colors.accent else colors.textPrimary,
+        )
+        TopBarIcon(icon = Icons.Rounded.IosShare, onClick = onShare)
     }
 }
 
 @Composable
-private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit = {}) {
-    val colors = AppTheme.colors
+private fun TopBarIcon(
+    icon: ImageVector,
+    onClick: () -> Unit = {},
+    tint: androidx.compose.ui.graphics.Color = AppTheme.colors.textPrimary,
+) {
     Box(
         modifier = Modifier
             .size(44.dp)
@@ -175,7 +199,7 @@ private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit = {}) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = colors.textPrimary,
+            tint = tint,
             modifier = Modifier.size(22.dp),
         )
     }

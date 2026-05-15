@@ -5,6 +5,140 @@
 
 ---
 
+## 📍 다음 세션 시작 가이드 (집/다른 PC에서 이어할 때)
+
+> 마지막 작업 시점: **2026-05-15 회사 PC**.
+> 정책 데이터 파이프라인 2단계까지 완료, GitHub Pages 활성화 + 3단계 (GitHub Actions 크롤러)가 남음.
+> **`CLAUDE.md`에 사용자 프로필·디자인 톤·협업 규칙 다 운반함** — Claude Code가 자동 로드.
+
+### 🔧 0. 환경 셋업 (집 PC에서 첫 풀 받은 직후)
+
+```bash
+# 1) 프로젝트 폴더 결정 (어디든 OK, 회사와 동일할 필요 X)
+cd C:\Users\<유저>\IdeaProjects   # 또는 원하는 위치
+git clone https://github.com/Gyubam/hidemoney.git whatsapp
+cd whatsapp
+
+# 2) local.properties 생성 (gitignore라 repo에 없음)
+#    Android SDK 경로 박기. Android Studio 설치되어 있으면 자동 — 없으면:
+#    Windows 기본 SDK 경로: C:\Users\<유저>\AppData\Local\Android\Sdk
+#    파일에 한 줄만:
+#       sdk.dir=C:\\Users\\<유저>\\AppData\\Local\\Android\\Sdk
+
+# 3) JDK 17 확인 (없으면 https://adoptium.net 에서 받기)
+java -version       # 17.x.x 이어야 함
+
+# 4) 첫 Gradle 동기화 (의존성 다운로드, 5~10분 걸림)
+./gradlew.bat build
+
+# 5) 폰 USB 연결 + 디버깅 허용
+adb devices         # SM-A356N device 보이면 OK
+```
+
+**ADB 경로**: `C:\Users\<유저>\AppData\Local\Android\Sdk\platform-tools\adb.exe`. PATH 추가하든지 절대경로 사용.
+
+### 🚀 1. 첫 빌드/실행 (5분)
+
+```bash
+./gradlew.bat installDebug   # 빌드 + 폰 설치 (incremental 후엔 20초)
+```
+
+폰에서 **숨은지원금** 아이콘 탭 → 온보딩 또는 홈 (이전 진행 상태 따라). 동작 확인 OK면 다음.
+
+### 📦 2. 즉시 할 일: GitHub Pages 활성화 (5분)
+
+`docs/policies.json`이 이미 repo에 들어가 있음 (이 푸시에 포함). GitHub Pages만 켜면 됨.
+
+1. 브라우저: https://github.com/Gyubam/hidemoney/settings/pages
+2. **Source**: Deploy from a branch
+3. **Branch**: `main` / **Folder**: `/docs` → Save
+4. 1~2분 후 접근 확인:
+   ```
+   https://gyubam.github.io/hidemoney/policies.json
+   ```
+   브라우저에 19개 정책 JSON 보이면 OK.
+5. 앱 재실행:
+   ```bash
+   adb logcat -s policies-fetch
+   ```
+   → `"Refreshed from remote: 19"` 로그 나오면 클라이언트가 remote fetch 성공.
+
+❗ Pages 활성화 안 해도 앱 자체는 정상 작동 (InMemory fallback).
+
+### 🤖 3. 다음 라운드 (3단계): GitHub Actions 크롤러 + Gemini
+
+목표: 매일 새벽 3시 자동 실행 → 정부24/복지로 크롤링 → Gemini Flash로 요약·태깅·ROI 점수 → `docs/policies.json` 자동 commit/push.
+
+**미리 준비할 것 (사용자)**:
+1. **Gemini API 키 발급** (무료, 일 100만 토큰):
+   - https://aistudio.google.com/apikey
+   - Get API key → 새 키 생성 → 복사
+2. **GitHub Secret 등록**:
+   - https://github.com/Gyubam/hidemoney/settings/secrets/actions
+   - New repository secret → Name: `GEMINI_API_KEY` / Value: 복사한 키 → Add
+
+**Claude가 할 것**:
+- `.github/workflows/crawl-policies.yml` 작성
+  - cron: `'0 18 * * *'` (UTC 18시 = KST 03시)
+  - Python 3.11 / `requests` / `beautifulsoup4` / `google-generativeai`
+  - 정부24·복지로 크롤링 (robots.txt 확인 + rate limit)
+  - Gemini API로 요약·태깅·자격 조건 추출·ROI 계산
+  - `docs/policies.json` 갱신 → git commit + push (변경 있을 때만)
+- `tools/crawl.py` 신규 (크롤러)
+- `tools/summarize.py` 신규 (Gemini 호출)
+- `tools/schema.py` 신규 (Policy/EligibilityRule pydantic 검증)
+- README에 수동 실행 방법 추가
+
+**개발 흐름**:
+1. 사용자가 API 키 준비 완료 알리면 Claude가 워크플로우 작성
+2. 첫 실행은 로컬에서 (`python tools/crawl.py`) — 디버깅
+3. 정상이면 GitHub Actions push → Pages 자동 갱신
+4. 앱에서 remote fetch → 진짜 정책 데이터 보임
+
+### 🔮 4. 그 다음 큰 갈래 (선택)
+
+| 작업 | 사용자 개입 | 가치 |
+|---|---|---|
+| **Firebase 연동** (Auth + Firestore + FCM) | Firebase 콘솔에서 프로젝트 생성 + `google-services.json` 다운로드 | 사용자 클라우드 저장, 푸시 알림 |
+| **출시 준비** (Phase 4) | Play Console 등록(25 USD) + 개인정보처리방침 호스팅 | 실제 출시 |
+| **알림 스케줄링** (WorkManager) | 없음 | 마감 임박 D-3 자동 알림 |
+| **즐겨찾기 목록 화면** | 없음 | 마이 "받을 예정 N건" 카드 탭 → 리스트 |
+
+> 가장 자연스러운 순서: 3단계(데이터 파이프라인) → Firebase → 출시 준비.
+
+---
+
+## 📊 현재 상태 스냅샷 (2026-05-15 회사 PC 마지막 작업 시점)
+
+### ✅ 완료된 것
+- **5개 화면 풀 구현**: 홈 / 캘린더 / 이벤트 / 마이 / 온보딩 + 정책 상세 + 놓친 내역 시트 + 프로필 편집
+- **하단 탭바 4탭** (홈/캘린더/이벤트/마이) + sealed Screen 기반 push 트랜지션 (AnimatedContent 280ms)
+- **디자인 시스템 코드화**: Color/Type/Spacing/Shape/Theme + 토스 톤 디자인 토큰
+- **앱 아이콘 + 스플래시**: 사용자 직접 디자인한 `appIcon2.png` (1254×1254 → 패딩 700×500), 외곽 `#0B7A5E`
+- **데이터 모델**: Policy(+EligibilityRule) / LifeEvent / TimelineGroup / EventBundle / PolicyCalendarEvent / UserProfile / MissedGrant / DocumentRequirement / MySummary
+- **샘플 데이터**: 19개 정책 + 6개 생애 이벤트 + 14개 캘린더 일정 + 3개 missed grants
+- **자격 매칭 로직** (`PolicyMatching.kt`): 룰 기반 동적 isEligible 계산 — 필수(age/region) 부재 시 미충족, 선택(occupation/married/hasChildren) 부재 시 관대 통과
+- **즐겨찾기**: SharedPreferences Set<String> + 정책 상세 ⭐ 토글 + 마이 카드 동적 카운트/금액
+- **공유/intent**: ShareHelper (놓친돈 공유 / 친구 초대 / mailto 의견)
+- **알림 권한**: Android 13+ POST_NOTIFICATIONS launcher + Toast 피드백
+- **온보딩 영속화**: SharedPreferences `hs_prefs` (onboarded + age/region/occupation/married/has_children)
+- **프로필 편집**: ProfileInputPage internal 재사용 (코드 중복 X)
+- **데이터 파이프라인 1단계**: PolicyRepository 인터페이스 + InMemory 추상화, byId 캐시
+- **데이터 파이프라인 2단계**: RemotePolicyRepository (Ktor) + CachedPolicyRepository (filesDir) + AppRoot background refresh
+- **`docs/policies.json` (12.5KB, 19 정책)**: SampleData export 완료, push 대기 중
+
+### ❌ 아직 안 한 것 (TODO)
+- GitHub Pages 활성화 (사용자 측, 5분)
+- GitHub Actions 크롤러 (3단계, 다음 라운드)
+- Firebase 연동
+- WorkManager 알림 스케줄링
+- 즐겨찾기 목록 화면 (마이 → 받을 예정 카드 탭)
+- 신청한 지원금 → 수령 확인 동작
+- 출시 준비 (keystore, AAB, Play Console)
+- 개인정보처리방침 호스팅
+
+---
+
 ## 0. 한 줄 포지션
 
 > "검색하는 앱"이 아니라 **"받게 만드는 앱"**
@@ -889,4 +1023,107 @@
 - **GitHub 연동 + 초기 푸시 완료** ✅ — https://github.com/Gyubam/hidemoney.git (main 브랜치)
   - Android 표준 .gitignore (build/.gradle/.kotlin/local.properties/keystore/.claude/google-services.json 제외)
   - 첫 커밋: 5개 화면 + 디자인 시스템 + 앱 아이콘 / appIcon.png/appIcon2.png 원본 디자인 자산도 포함
-  - 이후 PLAN.md 진행 일지 업데이트마다 커밋 → 푸시 패턴으로 운영
+  - 이후 PLAN.md 진행 일지 업데이트마다 커밋 → 푸시 패턴으로 운영 (단, **푸시는 사용자 명시 요청 시만**)
+
+### 2026-05-15 (자격 매칭 로직)
+- **EligibilityRule 모델 신규** — `minAge / maxAge / regions / requiresOccupation / requiresMarried / requiresChildren` 선언적 룰
+- **PolicyMatching 헬퍼** (`data/PolicyMatching.kt`)
+  - `EligibilityRule.matches(profile)` — 필수(age/region) 부재 시 false, 선택(occupation/married/hasChildren) 부재 시 관대 통과
+  - `Policy.matchedWith(profile)` — copy(isEligible = rule.matches)
+  - `List<Policy>.eligibleOnly(profile)` — 자격 충족만 필터링
+- **19개 정책에 자격 룰 부여**
+  - 청년 시리즈(월세지원/대출/도약계좌/내일채움/창업금): age 19~34 (창업학교/창업금은 39 상한)
+  - 출산/육아 시리즈: requiresChildren=true
+  - 결혼 시리즈(전세대출/디딤돌/희망타운): requiresMarried=true
+  - 마포구 정착지원금: regions=["서울"] + age 19~34
+  - 주거안정 장학금: age 18~27 + requiresOccupation=["학생"]
+  - 국민취업지원제도: requiresOccupation=["구직 중"]
+  - 통신비 감면: 룰 없이 isEligible=false 박음 (기초생활수급자/차상위 — UserProfile 필드 부재)
+- **AppRoot에서 매칭 적용**
+  - 홈 "이번 주 받을 수 있어요" → `eligibleOnly`로 필터
+  - 홈 "곧 마감돼요" → `matchedWith`만 (정보성 — 미충족도 표시)
+  - 캘린더 일정 → 자격 충족 정책 일정만 필터
+  - 정책 상세 진입 시 → `matchedWith` 적용해서 동적 자격 배지
+- **빌드/설치 확인** ✅ (18s)
+- **다음**: 매칭 톤 피드백 → 공유/액션 stub 채우기 OR 정책 데이터 파이프라인 OR Firebase 연동
+
+### 2026-05-15 (공유 / 알림 권한 / 외부 intent stub)
+- **ShareHelper** (`util/ShareHelper.kt`) — 공유 카피 통합 헬퍼
+  - `shareMissed(amount, count)` — "나 정부 지원금 N원이나 놓쳤대 ㅋㅋ" 바이럴 카피 + Play Store URL
+  - `inviteFriends()` — 앱 추천
+  - `sendFeedback()` — `mailto:sgb8154@gmail.com` (없으면 일반 공유로 fallback)
+  - `openPrivacyPolicy()` — Play Store URL placeholder (Firebase Hosting 호스팅 후 교체)
+- **NotificationPermission** (`util/NotificationPermission.kt`)
+  - `rememberNotificationPermissionRequest { granted -> ... }` — Android 13+ POST_NOTIFICATIONS 시스템 다이얼로그
+  - 13 미만은 자동 true (이미 manifest에 권한 선언, 시스템 자동 부여)
+- **화면 연결**
+  - 놓친 내역 시트: 📤 공유 카드 → `shareMissed`, 🔔 "올해는 놓치지 않을게요" → 알림 권한 요청 + 시트 닫힘
+  - 마이: 🔔 알림 설정 → 권한 요청, 💌 친구 초대 → 공유, 📋 개인정보 → 정책 URL, ✉️ 의견 → mailto
+  - 마이 프로필 더 채우기는 일단 Toast stub ("곧 만나요")
+  - 권한 결과는 Toast로 피드백 ("🔔 알림이 켜졌어요" / "알림 권한이 거부됐어요")
+- **빌드/설치 확인** ✅ (20s)
+- **다음**: 공유 동작 검증 → 정책 데이터 파이프라인 OR Firebase 연동 OR 프로필 편집 화면
+
+### 2026-05-15 (프로필 편집 화면)
+- **UserPrefs.save(profile)** — null 필드는 remove()로 정리, 비-null은 put. 양방향 영속화
+- **OnboardingScreen.ProfileInputPage 노출** — private → `internal`, `title`/`submitLabel` 파라미터화로 재사용 가능
+  - 온보딩 기존 호출: default param ("딱 두 가지만 알려주세요" / "내가 받을 지원금 보기") 유지
+  - 편집 화면 호출: "프로필 편집" / "저장하기"
+- **ProfileEditScreen 신규** (`ui/profile/ProfileEditScreen.kt`) — `ProfileInputPage`를 그대로 재사용. 코드 중복 0
+- **MainActivity 통합**
+  - `Screen.ProfileEdit` sealed 추가 + `AnimatedContent` push 트랜지션 자동 적용
+  - `profile`을 `mutableStateOf`로 보유 → 저장 시 `profile = newProfile` 트리거 → home/calendarEvents 재계산 (자격 매칭 즉시 반영)
+  - `MyScreen`에 `profile` 파라미터 추가 (rememberUserProfile() 캐시 의존 제거)
+  - 마이 "프로필 더 채우기" → `screen = Screen.ProfileEdit` 진입, 저장 후 자동으로 Tabs로 복귀
+- **빌드/설치 확인** ✅ (25s)
+- **다음**: 프로필 편집 동작 검증 → 정책 데이터 파이프라인 OR Firebase 연동
+
+### 2026-05-15 (즐겨찾기)
+- **FavoritesRepository** (`data/FavoritesRepository.kt`) — SharedPreferences `StringSet` 기반 `load/save/toggle`
+- **정책 상세 ⭐ 토글** — `PolicyDetailScreen` 시그니처에 `isFavorite/onToggleFavorite` 추가
+  - 채워진 별(`Icons.Rounded.Star`, 민트 컬러) / 빈 별(`StarBorder`, 텍스트 컬러) 전환
+  - 공유 아이콘은 `ShareHelper.inviteFriends` 연결 (정책 상세에서 친구 추천)
+- **마이 "받을 예정" 동적화** — AppRoot에서 `favorites` state 보유, `mySummary` `remember(favorites)`로 재계산
+  - savedCount = `favorites.size`
+  - savedAmount = 즐겨찾기 정책들의 amount 합산
+- 토글 시 Toast 피드백 ("받을 예정에 추가됐어요" / "받을 예정에서 빠졌어요")
+- **빌드/설치 확인** ✅ (24s)
+- **다음**: 즐겨찾기 동작 검증 → 정책 데이터 파이프라인 OR Firebase 연동
+
+### 2026-05-15 (정책 데이터 파이프라인 1단계 — Repository 추상화)
+- **PolicyRepository 인터페이스** (`data/PolicyRepository.kt`)
+  - `suspend fun loadAll(): List<Policy>` / `suspend fun findById(id)`
+  - InMemory 구현: SampleData wrapper
+- **SampleData.allPolicies** private → `internal val`로 노출 (Repository 의존성)
+- **AppRoot 리팩토링**
+  - `Repository` + `allPolicies` state + `LaunchedEffect`로 비동기 로드 (초기값 = SampleData → 깜박임 없음)
+  - `byId = remember(allPolicies) { allPolicies.associateBy { it.id } }` — O(1) lookup 캐시
+  - 모든 `SampleData.findPolicy(id)` 직접 호출을 `byId[id]`로 교체
+  - PolicyDetail / calendarEvents 필터 / mySummary 계산 / TabsHost CalendarScreen 콜백 모두 byId 사용
+- **TabsHost에 byId 파라미터 전달** — CalendarScreen의 String → Policy lookup용
+- **빌드/설치 확인** ✅ (29s)
+- **다음 라운드 (2단계)**: RemotePolicyRepository (Ktor) + 로컬 캐시 (cacheDir) + 외부 호스팅 URL placeholder + 오프라인 fallback. 사용자가 호스팅 결정(GitHub Pages / Firebase Hosting / vercel free).
+- **3단계**: GitHub Actions 크론 (정부24 크롤러 + Gemini Flash 요약 + policies.json 호스팅 push). 사용자 개입: Gemini API key 발급 + GitHub Actions secrets 설정.
+
+### 2026-05-15 (정책 데이터 파이프라인 2단계 — Remote fetch + 캐시)
+- **policies.json export 자동화**
+  - `SampleData.exportPoliciesJson()` 추가 — `Json { prettyPrint; encodeDefaults=false; explicitNulls=false }`
+  - 앱 첫 진입 시 `cacheDir/policies.json`에 자동 저장
+  - `adb exec-out run-as ... cat ...` + PowerShell UTF-8 변환으로 `docs/policies.json` (12.5KB / 19 정책) 추출 완료
+- **RemotePolicyRepository** (`data/RemotePolicyRepository.kt`)
+  - Ktor `HttpClient(OkHttp) { install(ContentNegotiation) { json(...) } }`로 외부 JSON GET
+  - URL: `https://gyubam.github.io/hidemoney/policies.json` (placeholder — 사용자가 GitHub Pages 활성화하면 동작)
+- **CachedPolicyRepository** (`data/CachedPolicyRepository.kt`)
+  - `filesDir/policies-cache.json`에 캐시
+  - `loadAll()` — 캐시 우선 → 없으면 remote → 실패 시 fallback(InMemory/SampleData)
+  - `refresh()` — remote 강제 fetch + 캐시 갱신
+- **AppRoot 통합**
+  - LaunchedEffect: `loadAll()` 즉시 응답 → background로 `refresh()` 시도 → 성공 시 `allPolicies` 갱신
+  - 외부 fetch 실패해도 항상 InMemory fallback으로 정상 동작
+- **빌드/설치 확인** ✅ (21s)
+- **사용자 측 작업 (다음 단계 활성화 위해)**:
+  1. `docs/policies.json` git add + commit + push
+  2. GitHub Repo → Settings → Pages → Source: Deploy from branch / Branch: main / Folder: `/docs` → Save
+  3. 1~2분 후 `https://gyubam.github.io/hidemoney/policies.json` 접근 가능
+  4. 앱 재진입 시 logcat `policies-fetch`에서 "Refreshed from remote: 19" 확인
+- **다음 라운드 (3단계)**: GitHub Actions 크론 워크플로우 — 정부24/복지로 크롤링 + Gemini Flash로 요약·태깅·ROI 점수 + `docs/policies.json` 자동 commit/push

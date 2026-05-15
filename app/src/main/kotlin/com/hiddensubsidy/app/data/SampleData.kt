@@ -2,6 +2,7 @@ package com.hiddensubsidy.app.data
 
 import com.hiddensubsidy.app.data.model.CalendarEventKind
 import com.hiddensubsidy.app.data.model.DocumentRequirement
+import com.hiddensubsidy.app.data.model.EligibilityRule
 import com.hiddensubsidy.app.data.model.EventBundle
 import com.hiddensubsidy.app.data.model.HomeData
 import com.hiddensubsidy.app.data.model.LifeEvent
@@ -9,6 +10,8 @@ import com.hiddensubsidy.app.data.model.MissedGrant
 import com.hiddensubsidy.app.data.model.Policy
 import com.hiddensubsidy.app.data.model.PolicyCalendarEvent
 import com.hiddensubsidy.app.data.model.TimelineGroup
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 object SampleData {
 
@@ -46,6 +49,7 @@ object SampleData {
         applicationOrg = "복지로",
         applicationUrl = "https://www.bokjiro.go.kr",
         isEligible = true,
+        eligibilityRule = EligibilityRule(minAge = 19, maxAge = 34),
     )
 
     private val birth = Policy(
@@ -75,6 +79,7 @@ object SampleData {
         applicationOrg = "정부24",
         applicationUrl = "https://www.gov.kr",
         isEligible = true,
+        eligibilityRule = EligibilityRule(requiresChildren = true),
     )
 
     private val telecom = Policy(
@@ -101,6 +106,7 @@ object SampleData {
         applicationOrg = "통신3사",
         applicationUrl = "https://www.welfare.go.kr",
         isEligible = false,
+        // 기초생활수급자/차상위 — UserProfile에 직접 필드 없으므로 룰 없이 isEligible=false 유지
     )
 
     private val scholarship = Policy(
@@ -131,6 +137,11 @@ object SampleData {
         applicationOrg = "한국장학재단",
         applicationUrl = "https://www.kosaf.go.kr",
         isEligible = true,
+        eligibilityRule = EligibilityRule(
+            minAge = 18,
+            maxAge = 27,
+            requiresOccupation = listOf("학생"),
+        ),
     )
 
     // =====================================================
@@ -145,6 +156,7 @@ object SampleData {
         period: String? = null,
         org: String = "복지로",
         url: String = "https://www.bokjiro.go.kr",
+        rule: EligibilityRule? = null,
     ) = Policy(
         id = id,
         title = title,
@@ -157,6 +169,7 @@ object SampleData {
         applicationOrg = org,
         applicationUrl = url,
         isEligible = true,
+        eligibilityRule = rule,
     )
 
     // ── 이사
@@ -169,6 +182,7 @@ object SampleData {
         period = "최대 2억원 · 연 1.5%",
         org = "주택도시기금",
         url = "https://nhuf.molit.go.kr",
+        rule = EligibilityRule(minAge = 19, maxAge = 34),
     )
     private val newlywedLoan = lite(
         id = "newlywed-loan",
@@ -179,6 +193,7 @@ object SampleData {
         period = "최대 3억원 · 연 1.2%",
         org = "주택도시기금",
         url = "https://nhuf.molit.go.kr",
+        rule = EligibilityRule(requiresMarried = true),
     )
     private val mapoMoveIn = lite(
         id = "mapo-movein",
@@ -189,6 +204,7 @@ object SampleData {
         period = "1회 30만원",
         org = "마포구청",
         url = "https://www.mapo.go.kr",
+        rule = EligibilityRule(minAge = 19, maxAge = 34, regions = listOf("서울")),
     )
 
     // ── 퇴사
@@ -211,6 +227,7 @@ object SampleData {
         period = "월 50만원 · 6개월",
         org = "고용24",
         url = "https://www.work24.go.kr",
+        rule = EligibilityRule(requiresOccupation = listOf("구직 중")),
     )
     private val trainingCard = lite(
         id = "training-card",
@@ -243,6 +260,7 @@ object SampleData {
         period = "1회 200만원",
         org = "정부24",
         url = "https://www.gov.kr",
+        rule = EligibilityRule(requiresChildren = true),
     )
     private val parentSubsidy = lite(
         id = "parent-subsidy",
@@ -253,6 +271,7 @@ object SampleData {
         period = "월 100만원 · 0~1세",
         org = "복지로",
         url = "https://www.bokjiro.go.kr",
+        rule = EligibilityRule(requiresChildren = true),
     )
 
     // ── 결혼
@@ -265,6 +284,7 @@ object SampleData {
         period = "분양가 시세 70%",
         org = "LH 청약센터",
         url = "https://apply.lh.or.kr",
+        rule = EligibilityRule(requiresMarried = true),
     )
     private val didimdolLoan = lite(
         id = "didimdol-loan",
@@ -275,6 +295,7 @@ object SampleData {
         period = "최대 4억원 · 연 1.9%",
         org = "주택도시기금",
         url = "https://nhuf.molit.go.kr",
+        rule = EligibilityRule(requiresMarried = true),
     )
 
     // ── 창업
@@ -287,6 +308,7 @@ object SampleData {
         period = "1억원 + 1년 보육",
         org = "K-Startup",
         url = "https://www.k-startup.go.kr",
+        rule = EligibilityRule(maxAge = 39),
     )
     private val youthStartupFund = lite(
         id = "youth-startup-fund",
@@ -297,6 +319,7 @@ object SampleData {
         period = "1회 1000만원",
         org = "K-Startup",
         url = "https://www.k-startup.go.kr",
+        rule = EligibilityRule(maxAge = 39),
     )
 
     // ── 취업
@@ -309,6 +332,7 @@ object SampleData {
         period = "2년 1200만원",
         org = "고용24",
         url = "https://www.work24.go.kr",
+        rule = EligibilityRule(minAge = 15, maxAge = 34, requiresOccupation = listOf("직장인")),
     )
     private val ydaAccount = lite(
         id = "yda-account",
@@ -319,6 +343,7 @@ object SampleData {
         period = "5년 최대 5천만원",
         org = "은행 (취급기관)",
         url = "https://www.fss.or.kr",
+        rule = EligibilityRule(minAge = 19, maxAge = 34),
     )
 
     // =====================================================
@@ -401,9 +426,9 @@ object SampleData {
     )
 
     // =====================================================
-    // 전체 정책 풀 (정책 상세 lookup 용)
+    // 전체 정책 풀 — Repository에서 fetch
     // =====================================================
-    private val allPolicies: List<Policy> = listOf(
+    internal val allPolicies: List<Policy> = listOf(
         youthRent, birth, telecom, scholarship,
         youthRentLoan, newlywedLoan, mapoMoveIn,
         unemployment, jobseekerSupport, trainingCard,
@@ -414,6 +439,12 @@ object SampleData {
     )
 
     fun findPolicy(id: String): Policy? = allPolicies.firstOrNull { it.id == id }
+
+    /** 정책 풀을 JSON으로 export — `docs/policies.json` 생성용 (dev) */
+    fun exportPoliciesJson(): String {
+        val json = Json { prettyPrint = true; encodeDefaults = false; explicitNulls = false }
+        return json.encodeToString(allPolicies)
+    }
 
     // =====================================================
     // 캘린더 일정 (자격 충족 정책만)
