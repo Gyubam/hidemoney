@@ -29,13 +29,14 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.LaunchedEffect
 import com.hiddensubsidy.app.data.CachedPolicyRepository
 import com.hiddensubsidy.app.data.FavoritesRepository
+import com.hiddensubsidy.app.data.HomeAggregator
 import com.hiddensubsidy.app.data.InMemoryPolicyRepository
 import com.hiddensubsidy.app.data.PolicyRepository
 import com.hiddensubsidy.app.data.RemotePolicyRepository
 import com.hiddensubsidy.app.data.SampleData
 import com.hiddensubsidy.app.data.UserPrefs
-import com.hiddensubsidy.app.data.eligibleOnly
 import com.hiddensubsidy.app.data.matchedWith
+import com.hiddensubsidy.app.data.withFreshDaysLeft
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -71,6 +72,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun Root(prefs: SharedPreferences) {
+    val context = LocalContext.current
     var onboarded by remember { mutableStateOf(prefs.getBoolean("onboarded", false)) }
 
     AnimatedContent(
@@ -84,14 +86,9 @@ private fun Root(prefs: SharedPreferences) {
             AppRoot()
         } else {
             OnboardingScreen(onComplete = { profile ->
-                prefs.edit().apply {
-                    putBoolean("onboarded", true)
-                    profile.age?.let { putInt("age", it) }
-                    profile.region?.let { putString("region", it) }
-                    profile.occupation?.let { putString("occupation", it) }
-                    profile.married?.let { putBoolean("married", it) }
-                    profile.hasChildren?.let { putBoolean("has_children", it) }
-                }.apply()
+                // onboarded flag만 마크. 프로필 자체는 UserPrefs로 저장 (모든 필드 일관 처리).
+                prefs.edit().putBoolean("onboarded", true).apply()
+                UserPrefs.save(context, profile)
                 onboarded = true
             })
         }
@@ -126,13 +123,14 @@ private fun AppRoot() {
         val fallback = InMemoryPolicyRepository(SampleData.allPolicies)
         CachedPolicyRepository(context, remote, fallback)
     }
-    var allPolicies by remember { mutableStateOf(SampleData.allPolicies) }
+    val today = remember { java.time.LocalDate.now() }
+    var allPolicies by remember { mutableStateOf(SampleData.allPolicies.withFreshDaysLeft(today)) }
     LaunchedEffect(Unit) {
-        // 1) 캐시 또는 fallback으로 즉시 응답
-        allPolicies = repository.loadAll()
+        // 1) 캐시 또는 fallback으로 즉시 응답 (daysLeft는 today 기준으로 재계산)
+        allPolicies = repository.loadAll().withFreshDaysLeft(today)
         // 2) background refresh — 성공 시 갱신, 실패 시 기존 유지
         runCatching {
-            allPolicies = repository.refresh()
+            allPolicies = repository.refresh().withFreshDaysLeft(today)
             android.util.Log.i("policies-fetch", "Refreshed from remote: ${allPolicies.size}")
         }.onFailure {
             android.util.Log.w("policies-fetch", "Remote refresh failed: ${it.message}")
@@ -146,18 +144,12 @@ private fun AppRoot() {
     val byId = remember(allPolicies) { allPolicies.associateBy { it.id } }
 
     var profile by remember { mutableStateOf(UserPrefs.load(context)) }
-    val baseHome = SampleData.home
     val requestNotif = rememberNotificationPermissionRequest { granted ->
         val msg = if (granted) "🔔 알림이 켜졌어요" else "알림 권한이 거부됐어요"
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
-    val home = remember(profile) {
-        baseHome.copy(
-            // 자격 충족 정책만 (행동 유도)
-            thisWeekPolicies = baseHome.thisWeekPolicies.eligibleOnly(profile),
-            // 매칭 결과만 inject (충족/미충족 모두 표시)
-            deadlineSoon = baseHome.deadlineSoon.matchedWith(profile),
-        )
+    val home = remember(profile, allPolicies) {
+        HomeAggregator.computeHome(allPolicies, profile, today)
     }
     val calendarEvents = remember(profile, allPolicies) {
         SampleData.calendarEvents.filter { e ->
@@ -255,13 +247,13 @@ private fun AppRoot() {
 
     if (showMissed) {
         MissedSheet(
-            data = SampleData.home,
+            data = home,
             onDismiss = { showMissed = false },
             onShare = {
                 ShareHelper.shareMissed(
                     context = context,
-                    missedAmount = SampleData.home.missedTotalAmount,
-                    missedCount = SampleData.home.missedCount,
+                    missedAmount = home.missedTotalAmount,
+                    missedCount = home.missedCount,
                 )
             },
             onNotifyOptIn = {

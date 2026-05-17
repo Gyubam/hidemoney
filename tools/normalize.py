@@ -40,7 +40,12 @@ def _yn(val: Any) -> bool:
 
 
 def conditions_to_eligibility_rule(cond: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """supportConditions 응답 → EligibilityRule 딕셔너리. 비어있으면 None."""
+    """supportConditions 응답 → EligibilityRule 딕셔너리. 비어있으면 None.
+
+    핵심 원칙 — broad detection:
+    한 카테고리의 모든 옵션이 다 활성이면 "조건 무관" → 룰 제외.
+    예: JA0201~JA0205 모두 Y → 소득 무관. 일부만 Y → 특정 구간 매칭.
+    """
     if not cond:
         return None
     rule: Dict[str, Any] = {}
@@ -59,25 +64,54 @@ def conditions_to_eligibility_rule(cond: Optional[Dict[str, Any]]) -> Optional[D
     except (TypeError, ValueError):
         pass
 
-    # 직업/신분
-    occupations: List[str] = []
+    # 직업/신분 — broad detection: 학생+직장인+구직 다 활성이면 룰 제외
     student_codes = ("JA0317", "JA0318", "JA0319", "JA0320")
-    if any(_yn(cond.get(c)) for c in student_codes):
+    student_active = any(_yn(cond.get(c)) for c in student_codes)
+    worker_active = _yn(cond.get("JA0326"))
+    seeker_active = _yn(cond.get("JA0327"))
+    occupations: List[str] = []
+    if student_active:
         occupations.append("학생")
-    if _yn(cond.get("JA0326")):
+    if worker_active:
         occupations.append("직장인")
-    if _yn(cond.get("JA0327")):
+    if seeker_active:
         occupations.append("구직 중")
-    if occupations:
-        seen: List[str] = []
-        for o in occupations:
-            if o not in seen:
-                seen.append(o)
-        rule["requiresOccupation"] = seen
+    # 3 카테고리 다 활성 = 무관. 1~2만 활성 = 특정 직업 대상.
+    if 0 < len(occupations) < 3:
+        rule["requiresOccupation"] = occupations
 
-    # 출산/육아
+    # 출산/육아 (JA0303)
     if _yn(cond.get("JA0303")):
         rule["requiresChildren"] = True
+
+    # 소득 — JA0201~JA0205 (중위소득 0~50, 51~75, 76~100, 101~200, 200%+)
+    # broad detection: 5개 다 활성 또는 JA0205 활성이면 사실상 무관.
+    income_tiers = [
+        ("JA0201", 50),
+        ("JA0202", 75),
+        ("JA0203", 100),
+        ("JA0204", 200),
+        ("JA0205", None),  # None = "200% 초과 OK" → 사실상 무관
+    ]
+    active_pcts: List[int] = []
+    has_unlimited = False
+    for code, pct in income_tiers:
+        if _yn(cond.get(code)):
+            if pct is None:
+                has_unlimited = True
+            else:
+                active_pcts.append(pct)
+    if active_pcts and not has_unlimited:
+        rule["maxIncomePercent"] = max(active_pcts)
+
+    # 가구 형태
+    # JA0404 = 1인가구. 활성이면 1인 전용.
+    if _yn(cond.get("JA0404")):
+        rule["maxHouseholdSize"] = 1
+
+    # JA0412 = 무주택세대. 활성이면 자가 제외.
+    if _yn(cond.get("JA0412")):
+        rule["requiresHousingType"] = ["전세", "월세", "기타"]
 
     return rule or None
 

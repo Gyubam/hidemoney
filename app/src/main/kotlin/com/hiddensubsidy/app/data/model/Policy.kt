@@ -37,6 +37,12 @@ data class EligibilityRule(
     val requiresOccupation: List<String>? = null,
     val requiresMarried: Boolean? = null,
     val requiresChildren: Boolean? = null,
+    val maxIncomeMonthly: Long? = null,         // 월 소득 이하 (원). 텍스트 정규식 fallback용
+    val maxIncomePercent: Int? = null,          // 중위소득 N% 이하 (JA0201~JA0205 직매핑). 가구원수와 짝으로 계산
+    val maxHouseholdSize: Int? = null,          // 가구원수 이하 (예: 1인가구 전용은 1)
+    val minHouseholdSize: Int? = null,          // 가구원수 이상
+    val requiresEducation: List<String>? = null,    // 필요 학력 (OR 매치)
+    val requiresHousingType: List<String>? = null,  // 필요 거주 형태 (OR 매치)
 )
 
 @Serializable

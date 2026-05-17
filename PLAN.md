@@ -1632,7 +1632,70 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 - Firebase Auth 통합 (Google 로그인)
 - 검색 + 필터 화면 (9,919개 중 자격 충족인 것만 또는 카테고리·지역 필터)
 
-### 2026-05-17 (R2.9.2 — cron이 풀빌드 데이터 덮어쓰는 버그 fix + 복구)
+### 2026-05-17 (R2.9.3 — 홈 집계 동적 + 매칭 정밀화 + JA 코드 신규 매핑)
+
+**상황**: R2.9.2로 풀빌드 데이터 복구 후 R3 진행. MainActivity 홈 집계를 9,923개 실데이터로 전환. 그 과정에서 사용자 피드백 받아가며 매칭 정확화 라운드.
+
+**A. 홈 집계 전환 (R3 Task #4 완료)**:
+- `HomeAggregator.kt` 신규 — `computeHome(allPolicies, profile, today): HomeData` 동적 계산. thisWeek(7일 이내, amount 최대) / deadlineSoon(30일 이내, daysLeft 오름차순 5개) / missedTotal·Count(자격 충족+amount>0 전체) / missedGrants(amount 큰 순 100개)
+- `PolicyMatching.kt:withFreshDaysLeft(today)` 추가 — 빌드 시점 stale daysLeft를 today 기준 재계산
+- `MainActivity.kt` — `SampleData.home` 하드코딩 제거, `allPolicies + profile + today`로 동적
+- `MissedSheet` 의 SampleData.home 참조도 `home` 사용
+
+**B. AnimatedAmount Long overflow fix**:
+- `amount.toInt()` Int 범위 ±21억 넘으면 wrap around → 음수 표시 버그
+- `animateFloatAsState`로 Long 보존
+- `formatAmount` 토스 톤 한글 단위 통합 (1만 미만: "9,500원" / 1만~1억: "120만원" / 1억~10억: "1.2억원" / 10억~1조: "1,303억원" / 1조+: "1.5조원")
+- `suffix` 파라미터 제거 (3 호출자 다 안 씀)
+- `rememberSaveable` — LazyColumn 스크롤로 dispose/recompose 시 카운트업 다시 발동 버그 fix
+
+**C. 자격 매칭 strict 모드** (광범위 정책 → 매칭 X):
+- 정부 API sentinel 무시: `maxAge >= 100`, `minAge < 2`
+- thin rule (유효 조건 0개) 매칭 불가 처리
+- 선택 정보 부재 시 false (occupation/married/hasChildren 입력 안 했으면 그 룰 정책 제외)
+- `eligibilityRule null`이면 false
+- "minAge ≤ 19 + maxAge sentinel" 조합도 broad → 매칭 제외 (성인 누구나 패턴)
+- broad occupation detection: `requiresOccupation` 가 [학생/직장인/구직 중] 다 포함이면 무관 처리
+
+**D. UserProfile 4 필드 확장**:
+- `incomeMonthly` (월 소득 구간 — IncomeBrackets), `householdSize` (1~4+), `education` (4단계), `housingType` (4단계)
+- `Educations`, `HousingTypes`, `HouseholdSizes`, `IncomeBrackets` 옵션 객체 추가
+- `UserPrefs` 저장/로드 확장
+- `EligibilityRule` 5 신규 필드 (maxIncomeMonthly/maxIncomePercent/maxHouseholdSize/minHouseholdSize/requiresEducation/requiresHousingType)
+- `PolicyMatching` 매칭 로직 확장 + 가구원수별 중위소득 테이블 (2026년 기준 1인 222만, 2인 368만, 3인 471만, 4인 572만)
+- `OnboardingScreen` ProfileInputPage에 4 신규 OptionPickerField + Bottom Sheet picker 4개 추가
+- `ProfileEditScreen` 재사용 → 자동 적용
+
+**E. supportConditions JA 코드 정찰** (사용자 swagger URL 공유):
+- 100개 sample inspect — `tools/inspect_conditions.py` 신규
+- swagger 명세 확보:
+  - **소득 (JA0201~JA0205)**: 중위소득 0~50% / 51~75% / 76~100% / 101~200% / 200%+
+  - **가족형태**: JA0303(출산/입양), JA0404(1인가구), JA0411(다자녀), JA0412(무주택)
+  - **직업**: JA0317~0320(학생류), JA0326(직장인), JA0327(구직자)
+  - **장애/보훈/질병**: JA0328~JA0330
+  - 학력 코드는 swagger에 없음 — 매핑 보류
+- 정찰 결과: 30 중 거의 100% Y인 코드(JA0101/JA0102/JA0111/JA0201/JA0202 등)는 sentinel, 일부만 Y인 코드(JA0322 47%, JA0303 13% 등)가 의미 있는 매칭 후보
+
+**F. normalize.py 매핑 확장 + broad detection**:
+- 소득: JA0201~JA0205 활성 중 max 비율 → `maxIncomePercent`. JA0205(200%+) 활성 시 무관 처리
+- 가족형태: JA0404 → `maxHouseholdSize=1`. JA0412 → `requiresHousingType=["전세","월세","기타"]`
+- 직업: 학생/직장인/구직 3개 다 활성이면 무관(룰 제외). 1~2개만 활성이면 해당 직업 list
+- 출산: JA0303 → `requiresChildren=true` (기존 유지)
+
+**G. 효과**:
+- 매칭 998건 → 372건 (broad detection + age sentinel + strict mode 누적)
+- MissedSheet 표시 3개 → 100개 cap (LazyColumn 스크롤)
+
+**남은 한계 (이번 풀빌드 트리거로 해결 예정)**:
+- normalize.py 새 매핑은 어제 데이터에 없음. 즉 소득/1인가구/무주택 매칭 효과 0 (클라이언트엔 적용됐지만 데이터 측에 룰 없음)
+- 풀빌드 1회 더 필요 — 사용자가 GitHub Actions trigger (`list_only=false, merge=false, ~1.5시간`)
+- 풀빌드 후 예상: 372건 → 100~200건 (진짜 소득/가구 조건 통과한 정책만)
+
+**다음 라운드 트리거 (사용자)**:
+- GitHub Actions → "정책 자동 빌드" → Run workflow
+- `crawl: true, list_only: false, enrich: false, limit: 0, user_type: 개인,가구, merge: false`
+
+
 
 **상황**: 어제(05-16) 사용자가 `list_only=false`로 detail 풀빌드 정상 트리거 → `ef15eb4` 커밋(KST 01:09) 18만 줄 추가. documents/eligibilityRule 다 채워짐. 그러나 3시간 뒤 cron이 KST 03:00 정시 + 1시간 14분 실행으로 `0531d25`(KST 04:14) 커밋 떨어지면서 **풀빌드 데이터 통째로 날아감**.
 

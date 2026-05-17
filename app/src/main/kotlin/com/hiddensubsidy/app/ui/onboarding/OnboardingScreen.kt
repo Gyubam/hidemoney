@@ -52,6 +52,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.hiddensubsidy.app.data.model.Educations
+import com.hiddensubsidy.app.data.model.HouseholdSizes
+import com.hiddensubsidy.app.data.model.HousingTypes
+import com.hiddensubsidy.app.data.model.IncomeBrackets
 import com.hiddensubsidy.app.data.model.Occupations
 import com.hiddensubsidy.app.data.model.Regions
 import com.hiddensubsidy.app.data.model.UserProfile
@@ -363,6 +367,34 @@ internal fun ProfileInputPage(
                 onClick = { openSheet = PickerSheet.Occupation },
             )
             Spacer(Modifier.height(12.dp))
+            OptionPickerField(
+                label = "월 소득",
+                value = IncomeBrackets.labelFor(profile.incomeMonthly),
+                placeholder = "선택 안 함",
+                onClick = { openSheet = PickerSheet.Income },
+            )
+            Spacer(Modifier.height(12.dp))
+            OptionPickerField(
+                label = "가구원수",
+                value = HouseholdSizes.labelFor(profile.householdSize),
+                placeholder = "선택 안 함",
+                onClick = { openSheet = PickerSheet.Household },
+            )
+            Spacer(Modifier.height(12.dp))
+            OptionPickerField(
+                label = "학력",
+                value = profile.education,
+                placeholder = "선택 안 함",
+                onClick = { openSheet = PickerSheet.Education },
+            )
+            Spacer(Modifier.height(12.dp))
+            OptionPickerField(
+                label = "거주 형태",
+                value = profile.housingType,
+                placeholder = "선택 안 함",
+                onClick = { openSheet = PickerSheet.Housing },
+            )
+            Spacer(Modifier.height(12.dp))
             ToggleRow(
                 label = "결혼",
                 value = profile.married,
@@ -404,11 +436,31 @@ internal fun ProfileInputPage(
             onPick = { onChange(profile.copy(occupation = it)); openSheet = null },
             onDismiss = { openSheet = null },
         )
+        PickerSheet.Income -> IncomeSheet(
+            current = profile.incomeMonthly,
+            onPick = { onChange(profile.copy(incomeMonthly = it)); openSheet = null },
+            onDismiss = { openSheet = null },
+        )
+        PickerSheet.Household -> HouseholdSheet(
+            current = profile.householdSize,
+            onPick = { onChange(profile.copy(householdSize = it)); openSheet = null },
+            onDismiss = { openSheet = null },
+        )
+        PickerSheet.Education -> EducationSheet(
+            current = profile.education,
+            onPick = { onChange(profile.copy(education = it)); openSheet = null },
+            onDismiss = { openSheet = null },
+        )
+        PickerSheet.Housing -> HousingSheet(
+            current = profile.housingType,
+            onPick = { onChange(profile.copy(housingType = it)); openSheet = null },
+            onDismiss = { openSheet = null },
+        )
         null -> {}
     }
 }
 
-private enum class PickerSheet { Age, Region, Occupation }
+private enum class PickerSheet { Age, Region, Occupation, Income, Household, Education, Housing }
 
 // =============================================================
 // 입력 필드들
@@ -700,6 +752,102 @@ private fun OccupationSheet(current: String?, onPick: (String) -> Unit, onDismis
                     text = o,
                     selected = o == current,
                     onClick = { onPick(o) },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun IncomeSheet(current: Long?, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+        containerColor = colors.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
+    ) {
+        SheetTitle("월 소득")
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
+            IncomeBrackets.all.forEach { opt ->
+                PickerRow(
+                    text = opt.label,
+                    selected = opt.midValue == current,
+                    onClick = { onPick(opt.midValue) },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HouseholdSheet(current: Int?, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+        containerColor = colors.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
+    ) {
+        SheetTitle("가구원수")
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
+            HouseholdSizes.all.forEach { opt ->
+                PickerRow(
+                    text = opt.label,
+                    selected = opt.value == current,
+                    onClick = { onPick(opt.value) },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EducationSheet(current: String?, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+        containerColor = colors.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
+    ) {
+        SheetTitle("학력")
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
+            Educations.all.forEach { e ->
+                PickerRow(
+                    text = e,
+                    selected = e == current,
+                    onClick = { onPick(e) },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HousingSheet(current: String?, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+        containerColor = colors.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
+    ) {
+        SheetTitle("거주 형태")
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
+            HousingTypes.all.forEach { h ->
+                PickerRow(
+                    text = h,
+                    selected = h == current,
+                    onClick = { onPick(h) },
                 )
             }
         }
