@@ -1715,6 +1715,29 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 **향후 옵션 (B 보류)**:
 - 사용자 토글로 "융자 포함" / "사업 자금 포함" 등 활성화. 디폴트는 OFF.
 
+### 2026-05-17 (R2.9.5 — 풀빌드 concurrent 가속 ~14x)
+
+**상황**: 사용자 풀빌드 1.5시간 너무 느림.
+
+**fix (`tools/crawl.py`)**:
+- `fetch_policies`를 2 phase로:
+  1. iter list_row 다 받기 (가벼움, ~1분)
+  2. detail+conditions를 `ThreadPoolExecutor(max_workers=8)`로 동시 fetch
+- `fetch_full` 내부 sleep 제거 (concurrent에선 thread 수가 rate limit 역할)
+- `requests.Session` thread-safe — 안전
+
+**로컬 검증**: 100 정책 5.4초 (sequential ~75초 → 14배 빨라짐). 9,923개 풀빌드 ~5~10분 예상.
+
+**안전성**:
+- 일일 한도 50만콜 중 ~20K (4%)
+- 400 error 일부 발생하지만 retry로 회복 (have_detail/have_conditions 100/100)
+- workflow timeout은 360분 그대로 — 더 줄여도 무방
+
+**다음 액션 (사용자)**:
+- 진행 중 풀빌드 cancel → R2.9.5 + R2.9.4 다 적용된 새 풀빌드 재 trigger
+- 같은 input (crawl=true, list_only=false, enrich=false, limit=0, user_type=개인,가구, merge=false)
+- ~5~10분에 끝남
+
 
 
 **상황**: 어제(05-16) 사용자가 `list_only=false`로 detail 풀빌드 정상 트리거 → `ef15eb4` 커밋(KST 01:09) 18만 줄 추가. documents/eligibilityRule 다 채워짐. 그러나 3시간 뒤 cron이 KST 03:00 정시 + 1시간 14분 실행으로 `0531d25`(KST 04:14) 커밋 떨어지면서 **풀빌드 데이터 통째로 날아감**.

@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -206,11 +207,13 @@ class GovApiClient:
     # 묶음 fetch
     # ────────────────────────────────────────────────────────────────────────
     def fetch_full(self, service_id: str, *, list_row: Dict[str, Any]) -> RawPolicy:
-        """단일 서비스ID에 대해 list_row + detail + conditions 묶어서 반환."""
+        """단일 서비스ID에 대해 list_row + detail + conditions 묶어서 반환.
+
+        sleep 없음 — concurrent fetch에서 각 thread가 호출하므로
+        thread 수가 자연스러운 rate limit 역할. 일일 한도 50만콜 중 ~20K만 사용.
+        """
         detail = self.get_detail(service_id)
-        time.sleep(self.REQUEST_GAP_SEC)
         cond = self.get_conditions(service_id)
-        time.sleep(self.REQUEST_GAP_SEC)
         return RawPolicy(list_row=list_row, detail=detail, conditions=cond)
 
 
@@ -256,33 +259,55 @@ def fetch_policies(
     limit: Optional[int] = None,
     per_page: int = 50,
     user_type: Optional[str] = None,
+    max_workers: int = 8,
 ) -> List[RawPolicy]:
     """limit 개수의 정책에 대해 list+detail+conditions 묶음을 받아 리스트로 반환.
 
     user_type: 사용자구분 필터. 콤마 분리 OR 매치 ('개인,가구' 등).
     정부24 서버의 cond[사용자구분::LIKE]는 콤마를 literal로 해석 → OR 매치 불가.
     그래서 서버 필터는 비활성 (None), 클라이언트 측에서만 substring OR 매치.
+
+    max_workers: detail+conditions fetch를 동시에 처리할 thread 수.
+    9,923 × 2 calls을 sequential이면 ~75분, 8 worker concurrent면 ~10~15분.
+    requests.Session은 thread-safe.
     """
-    raws: List[RawPolicy] = []
-    iterator = client.iter_services(
+    # 1) list_row 먼저 다 받기 (paging, 가벼움)
+    log.info("Phase 1: iter list rows (limit=%s)", limit or "ALL")
+    rows: List[Dict[str, Any]] = []
+    for row in client.iter_services(
         limit=limit,
-        per_page=max(per_page, 100),  # 클라 필터로 많이 걸러질 수 있어 더 큰 페이지
-        user_type=None,  # 서버 필터 비활성 — 콤마 OR 매치 불가하므로
+        per_page=max(per_page, 100),
+        user_type=None,
         client_filter_user_type=user_type,
-    )
-    for row in iterator:
+    ):
         svc_id = str(row.get("서비스ID") or "").strip()
         if not svc_id:
-            log.warning("skipped row without 서비스ID: %r", row)
+            log.warning("skipped row without 서비스ID")
             continue
+        rows.append(row)
+    log.info("Phase 1 done: %d rows", len(rows))
+
+    # 2) detail + conditions를 thread pool로 동시 fetch
+    log.info("Phase 2: concurrent fetch detail+conditions (workers=%d)", max_workers)
+
+    def _fetch_one(row: Dict[str, Any]) -> Optional[RawPolicy]:
+        svc_id = str(row.get("서비스ID") or "").strip()
         try:
-            raw = client.fetch_full(svc_id, list_row=row)
+            return client.fetch_full(svc_id, list_row=row)
         except GovApiError as e:
             log.warning("skip %s — fetch_full failed: %s", svc_id, e)
-            continue
-        raws.append(raw)
-        total_label = str(limit) if limit is not None else "ALL"
-        log.info("fetched %d/%s — %s (%s)", len(raws), total_label, row.get("서비스명"), svc_id)
+            return None
+
+    raws: List[RawPolicy] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = [ex.submit(_fetch_one, row) for row in rows]
+        for i, fut in enumerate(as_completed(futures), 1):
+            r = fut.result()
+            if r is not None:
+                raws.append(r)
+            if i % 200 == 0:
+                log.info("phase 2: %d/%d completed", i, len(rows))
+    log.info("Phase 2 done: %d raws", len(raws))
     return raws
 
 
