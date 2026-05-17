@@ -1632,5 +1632,49 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 - Firebase Auth 통합 (Google 로그인)
 - 검색 + 필터 화면 (9,919개 중 자격 충족인 것만 또는 카테고리·지역 필터)
 
+### 2026-05-17 (R2.9.2 — cron이 풀빌드 데이터 덮어쓰는 버그 fix + 복구)
+
+**상황**: 어제(05-16) 사용자가 `list_only=false`로 detail 풀빌드 정상 트리거 → `ef15eb4` 커밋(KST 01:09) 18만 줄 추가. documents/eligibilityRule 다 채워짐. 그러나 3시간 뒤 cron이 KST 03:00 정시 + 1시간 14분 실행으로 `0531d25`(KST 04:14) 커밋 떨어지면서 **풀빌드 데이터 통째로 날아감**.
+
+**진단** (커밋 시간 + git show + cron 로그 + merge 코드 검토):
+- cron 기본 input `list_only=true` → `fetch_list_only` 호출 → detail/conditions 없는 RawPolicy 생산
+- normalize 결과 documents=[] / eligibilityRule None인 new policy
+- `build_policies.py:223` merge 로직 `by_id[pid] = new` → 풀빌드 기존 데이터를 빈 new로 통째 덮어씀
+- 결과: documents 9,320→0, eligibilityRule 9,896→0
+
+**Fix (`tools/build_policies.py:208~232`)**:
+```python
+# merge 시 new가 비었으면 detail/conditions 데이터 보존
+existing_policy = by_id[pid]
+if not new.get("documents") and existing_policy.get("documents"):
+    new["documents"] = existing_policy["documents"]
+    preserved_docs += 1
+if not new.get("eligibilityRule") and existing_policy.get("eligibilityRule"):
+    new["eligibilityRule"] = existing_policy["eligibilityRule"]
+    preserved_rule += 1
+```
+
+cron이 list-only로 매일 돌아도 풀빌드 데이터 안 사라짐. 로그에 `preserved_documents=N, preserved_rule=N` 출력.
+
+**데이터 복구**: `git checkout ef15eb4 -- docs/policies.json` → 풀빌드 데이터 그대로 살림.
+
+**현재 채움률 (복구 후)**:
+- title/category/summary/applicationUrl/applicationOrg: 100%
+- eligibility: 98.0%
+- procedure: 98.3%
+- **documents: 93.9% ✅** (복구 전 0%)
+- **eligibilityRule: 99.7% ✅** (복구 전 0%)
+- amount: 42.3%
+- deadline: 5.1%
+- period: 0%, region: 키 없음
+
+**한계 (사이드 케이스)**:
+- 정부 측에서 정책의 detail 데이터가 실제 변경/삭제돼도 cron list-only는 갱신 못 받음 (기존 값 그대로 유지). stale 가능성.
+- LLM 정련 결과(차후 R2.9 백필) 보존은 별개 문제. summary 등 list_row에서 받는 필드는 list-only cron이 정부 raw 톤으로 덮음.
+- 해결책: 풀 detail 빌드를 가끔(주 1회?) 수동 트리거하면 stale 갱신 + 모든 필드 최신화.
+
+**다음 라운드 (R3 — MainActivity 홈 집계 전환)**:
+- 데이터 준비 완료 → 폰 빌드/설치 + 홈 화면이 9,923개 실데이터로 작동하는지 검증
+- `MainActivity.kt:149-161` `SampleData.home` 하드코딩 제거 → `allPolicies` + UserProfile 동적 계산
 
 

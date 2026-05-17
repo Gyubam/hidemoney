@@ -212,18 +212,29 @@ def run(
         }
         added = 0
         updated = 0
+        preserved_docs = 0
+        preserved_rule = 0
         for new in new_policies:
             pid = new.get("id")
             if not pid:
                 continue
             if pid in by_id:
+                # detail/conditions에서만 받을 수 있는 필드는 new가 비었으면 기존 값 보존.
+                # cron이 list-only로 돌 때 풀빌드 detail 데이터를 덮어버리는 사고 방지.
+                existing_policy = by_id[pid]
+                if not new.get("documents") and existing_policy.get("documents"):
+                    new["documents"] = existing_policy["documents"]
+                    preserved_docs += 1
+                if not new.get("eligibilityRule") and existing_policy.get("eligibilityRule"):
+                    new["eligibilityRule"] = existing_policy["eligibilityRule"]
+                    preserved_rule += 1
                 updated += 1
             else:
                 added += 1
             by_id[pid] = new
         log.info(
-            "merge: existing=%d, added=%d, updated=%d, total=%d",
-            len(existing), added, updated, len(by_id),
+            "merge: existing=%d, added=%d, updated=%d, total=%d, preserved_documents=%d, preserved_rule=%d",
+            len(existing), added, updated, len(by_id), preserved_docs, preserved_rule,
         )
         base = list(by_id.values())
     else:
