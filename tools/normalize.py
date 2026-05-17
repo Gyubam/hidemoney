@@ -458,6 +458,10 @@ def normalize(
         {"name": d} for d in split_to_items(documents_raw, max_items=10, max_len=40)
     ]
 
+    # grantType — list_row.지원유형은 `||` 분리 multi-value
+    support_type_raw = str(list_row.get("지원유형") or "").strip()
+    grant_types = [t.strip() for t in support_type_raw.split("||") if t.strip()] if support_type_raw else []
+
     policy: Dict[str, Any] = {
         "id": _slugify(raw.service_id),
         "title": str(list_row.get("서비스명") or detail.get("서비스명") or "").strip(),
@@ -471,6 +475,7 @@ def normalize(
         "procedure": split_to_items(procedure_raw, max_items=6, max_len=60),
         "applicationOrg": str(list_row.get("소관기관명") or detail.get("접수기관명") or "").strip(),
         "applicationUrl": str(detail.get("온라인신청사이트URL") or list_row.get("상세조회URL") or "").strip(),
+        "grantType": grant_types,
     }
 
     # eligibilityRule (JA0xxx 직매핑)

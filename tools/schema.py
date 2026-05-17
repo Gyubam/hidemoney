@@ -28,6 +28,12 @@ class EligibilityRule(BaseModel):
     requiresOccupation: Optional[List[str]] = None
     requiresMarried: Optional[bool] = None
     requiresChildren: Optional[bool] = None
+    maxIncomeMonthly: Optional[int] = None
+    maxIncomePercent: Optional[int] = None
+    maxHouseholdSize: Optional[int] = None
+    minHouseholdSize: Optional[int] = None
+    requiresEducation: Optional[List[str]] = None
+    requiresHousingType: Optional[List[str]] = None
 
 
 class Policy(BaseModel):
@@ -48,6 +54,7 @@ class Policy(BaseModel):
     procedure: List[str] = Field(default_factory=list)
     applicationOrg: Optional[str] = None
     applicationUrl: Optional[str] = None
+    grantType: List[str] = Field(default_factory=list)
     eligibilityRule: Optional[EligibilityRule] = None
 
     # 빌드 단계에서만 채우는 보강 필드 (클라이언트는 unknown으로 무시)

@@ -1695,6 +1695,26 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 - GitHub Actions → "정책 자동 빌드" → Run workflow
 - `crawl: true, list_only: false, enrich: false, limit: 0, user_type: 개인,가구, merge: false`
 
+### 2026-05-17 (R2.9.4 — grantType 필터 + occupation 기반 카테고리 제외)
+
+**상황**: R2.9.3 후 사용자 피드백 — "청년 창업 30억 같은 거 임팩트 카드에 들어가면 거짓 임팩트". 정찰 결과 정부 `list_row.지원유형` 필드가 `||` 분리 multi-value (현금/현금(감면)/현금(장학금)/현금(융자)/현물/이용권/서비스(*)/의료지원/상담/문화/기타/시설이용 등).
+
+**구현 (A+C 조합)**:
+- **A**: `Policy.grantType: List<String>` 추가. normalize에서 `||` split. HomeAggregator의 missed 필터에서 융자(`현금(융자)`) 제외, 현금성·바우처(`현금/현금(감면)/현금(장학금)/현물/이용권`)만 포함.
+- **C**: HomeAggregator에 `isCategoryRelevant(category, occupation)` — occupation != "사업자"면 category "창업" 제외.
+- backward compat: `grantType.isEmpty()`면 통과 (어제 데이터 호환).
+- `tools/schema.py` — Pydantic에 grantType + 신규 EligibilityRule 필드 추가 (검증 통과).
+
+**효과 (즉시, 어제 데이터)**:
+- C만 작용: 사업자 아닌 사용자의 "창업" 카테고리 정책 제외. 372건 → 일부 감소.
+
+**효과 (풀빌드 후)**:
+- A 발현: 융자 제외 + 현금성/바우처만 → 진짜 받을 수 있는 지원금만.
+- 372건 → 50~150건 예상 (실제 받을 수 있는 정책만)
+
+**향후 옵션 (B 보류)**:
+- 사용자 토글로 "융자 포함" / "사업 자금 포함" 등 활성화. 디폴트는 OFF.
+
 
 
 **상황**: 어제(05-16) 사용자가 `list_only=false`로 detail 풀빌드 정상 트리거 → `ef15eb4` 커밋(KST 01:09) 18만 줄 추가. documents/eligibilityRule 다 채워짐. 그러나 3시간 뒤 cron이 KST 03:00 정시 + 1시간 14분 실행으로 `0531d25`(KST 04:14) 커밋 떨어지면서 **풀빌드 데이터 통째로 날아감**.

@@ -19,6 +19,7 @@ data class Policy(
     val procedure: List<String> = emptyList(),        // 신청 절차
     val applicationOrg: String? = null,               // "복지로", "정부24"
     val applicationUrl: String? = null,               // 외부 신청 URL
+    val grantType: List<String> = emptyList(),        // 지원 형태 ("현금"/"현물"/"이용권"/"현금(융자)" 등). `||` 분리된 multi-value
     val isEligible: Boolean = true,                   // 자격 충족 여부 — 동적 계산 결과
     // === 자격 매칭 룰 (선언적) ===
     val eligibilityRule: EligibilityRule? = null,

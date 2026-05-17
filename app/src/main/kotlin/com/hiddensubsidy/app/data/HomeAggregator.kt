@@ -9,6 +9,28 @@ import java.time.LocalDate
 object HomeAggregator {
 
     /**
+     * "받을 수 있는 지원금" 카운트에 포함하는 grantType.
+     * 현금성·바우처만. 융자(갚아야 함)·서비스(신청 부담 큼)·기타(불명확)는 제외.
+     */
+    private val MISSED_GRANT_TYPES = setOf(
+        "현금", "현금(감면)", "현금(장학금)",
+        "현물", "이용권",
+    )
+
+    /** 명시적 제외 — 융자(대출, 갚아야 함). */
+    private val LOAN_GRANT_TYPES = setOf("현금(융자)")
+
+    /**
+     * 사용자 occupation이 아닌데 노출하면 거짓 임팩트가 되는 카테고리.
+     * 예: 사업자 아닌 사람에게 "창업" 카테고리 노출 X.
+     */
+    private fun isCategoryRelevant(category: String, occupation: String?): Boolean = when (category) {
+        "창업" -> occupation == "사업자"
+        else -> true
+    }
+
+
+    /**
      * allPolicies(정부 풀 데이터) + profile → HomeData 동적 계산.
      *
      * 휴리스틱:
@@ -44,8 +66,17 @@ object HomeAggregator {
             .sortedBy { it.daysLeft }
             .take(5)
 
-        // 놓친 돈 = 자격 충족 + amount > 0 (휴리스틱)
-        val missedCandidates = eligible.filter { it.amount > 0 }
+        // 놓친 돈 후보 — 자격 충족 + amount > 0 + 현금성/바우처 + 카테고리 적합
+        // 융자 제외(갚아야 함), 사업자 아니면 창업 제외(거짓 임팩트 방지).
+        // grantType이 비어있으면(어제 데이터 호환) 일단 포함.
+        val missedCandidates = eligible.filter { p ->
+            if (p.amount <= 0) return@filter false
+            if (!isCategoryRelevant(p.category, profile.occupation)) return@filter false
+            if (p.grantType.isEmpty()) return@filter true  // 풀빌드 전 데이터 호환
+            if (p.grantType.any { it in LOAN_GRANT_TYPES }) return@filter false
+            // 현금성/바우처 하나라도 포함되면 OK (multi-value)
+            p.grantType.any { it in MISSED_GRANT_TYPES }
+        }
         val missedTotalAmount = missedCandidates.sumOf { it.amount }
         val missedCount = missedCandidates.size
 
