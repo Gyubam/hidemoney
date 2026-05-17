@@ -23,6 +23,13 @@ object UserPrefs {
             householdSize = if (p.contains("household_size")) p.getInt("household_size", 0) else null,
             education = p.getString("education", null),
             housingType = p.getString("housing_type", null),
+            isMulticultural = p.getBoolean("is_multicultural", false),
+            isSingleParent = p.getBoolean("is_single_parent", false),
+            isDisabled = p.getBoolean("is_disabled", false),
+            isVeteran = p.getBoolean("is_veteran", false),
+            isDefector = p.getBoolean("is_defector", false),
+            isLowIncome = p.getBoolean("is_low_income", false),
+            includeLoanGrants = p.getBoolean("include_loan_grants", false),
         )
     }
 
@@ -40,6 +47,13 @@ object UserPrefs {
             if (profile.householdSize != null) putInt("household_size", profile.householdSize) else remove("household_size")
             if (profile.education != null) putString("education", profile.education) else remove("education")
             if (profile.housingType != null) putString("housing_type", profile.housingType) else remove("housing_type")
+            putBoolean("is_multicultural", profile.isMulticultural)
+            putBoolean("is_single_parent", profile.isSingleParent)
+            putBoolean("is_disabled", profile.isDisabled)
+            putBoolean("is_veteran", profile.isVeteran)
+            putBoolean("is_defector", profile.isDefector)
+            putBoolean("is_low_income", profile.isLowIncome)
+            putBoolean("include_loan_grants", profile.includeLoanGrants)
         }.apply()
     }
 }

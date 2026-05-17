@@ -15,6 +15,16 @@ data class UserProfile(
     val householdSize: Int? = null,         // 가구원수. 4+ 는 4로 캡 저장
     val education: String? = null,          // 학력 ("고졸 미만"/"고졸"/"대학 재학"/"대졸 이상")
     val housingType: String? = null,        // 거주 형태 ("자가"/"전세"/"월세"/"기타")
+
+    // Sensitive 카테고리 — 해당 사용자만 활성화. default false = 해당 정책 제외.
+    val isMulticultural: Boolean = false,
+    val isSingleParent: Boolean = false,
+    val isDisabled: Boolean = false,
+    val isVeteran: Boolean = false,
+    val isDefector: Boolean = false,        // 북한이탈주민
+    val isLowIncome: Boolean = false,       // 저소득/수급자/차상위
+    // 표시 옵션 — 융자 정책 포함 (default false: 현금성/바우처만)
+    val includeLoanGrants: Boolean = false,
 ) {
     /** 프로필 정확도 0.0~1.0. 필수 2개에 30%, 선택 7개에 70% (각 10%). */
     val completeness: Float
@@ -59,7 +69,7 @@ object Regions {
 }
 
 object Occupations {
-    val all = listOf("직장인", "학생", "사업자", "프리랜서", "구직 중")
+    val all = listOf("직장인", "학생", "사업자", "프리랜서", "구직 중", "농어업", "예술인")
 }
 
 object Genders {

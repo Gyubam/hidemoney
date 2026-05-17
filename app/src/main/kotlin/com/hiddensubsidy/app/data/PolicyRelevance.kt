@@ -150,18 +150,223 @@ object PolicyRelevance {
         return true
     }
 
-    fun isSensitiveExclusion(policy: Policy): Boolean {
+    // 항상 제외 — 일반 사용자에게 의미 0 (사용자 토글 X)
+    private val ADMIN_KEYWORDS = listOf(
+        "범죄수익", "범죄피해", "환수", "압수", "벌금", "징수",
+        "재소자", "출소자", "보호관찰", "교정",
+    )
+    private val VICTIM_KEYWORDS = listOf(
+        "가정폭력", "성폭력", "성매매", "학교폭력", "데이트폭력", "디지털성폭력",
+        "스토킹", "아동학대", "노인학대", "인신매매",
+        "피해자 보호", "피해 가구",
+    )
+    private val FACILITY_KEYWORDS = listOf(
+        "LPG용기", "LPG 용기", "보일러 교체", "지하수", "정화조",
+        "축사 시설", "온실 시설", "양식장", "어선 시설",
+    )
+    private val DISEASE_KEYWORDS = listOf(
+        "C형간염", "B형간염", "결핵", "한센", "에이즈", "HIV", "투석",
+        "희귀질환", "암환자", "치매", "조현병", "발달장애 진단", "지적장애 진단",
+        "정신질환자",
+    )
+    private val SPECIAL_OCCUPATION_KEYWORDS = listOf(
+        "광업 종사", "광부", "광산",
+        "원양어업", "어선원", "선원", "양식 어업",
+        "임업 종사", "산림조합",
+        "축산농가", "축산업자",
+        "농민회", "어민회",
+        "건축주", "건설업자", "시공사",
+        "운수업", "택시사업자", "화물차주", "버스기사",
+    )
+    private val ADOPTION_KEYWORDS = listOf("입양", "위탁가정", "유기동물", "유기견", "유기묘")
+
+    /** 농어업·축산·임업 종사자 전용 — 일반 직장인에게 의미 X. */
+    private val AGRI_FORESTRY_KEYWORDS = listOf(
+        "농업인", "어업인", "축산농가", "축산업자", "임업 종사", "임업인",
+        "농가소득", "어가소득", "농촌 정착", "어촌 정착",
+        "농어가", "어가", "농어업", "농촌체험", "농가 부업",
+        "양식어업", "농업법인", "어업법인", "수산업법",
+        "농지", "농기계", "어선원",
+    )
+
+    /** 특정 차량/장비 보유자 전용. */
+    private val VEHICLE_EQUIPMENT_KEYWORDS = listOf(
+        "노후 경유차", "노후경유차", "경유차 조기",
+        "이륜차 운전자", "이륜차 보유",
+        "전기차 보조", "수소차 보조", "전기이륜차",
+        "어선 보유", "어선 안전", "어선 기반",
+        "농기계 임대",
+    )
+
+    /** 주택·시설물 개량 — 자가/주택 보유자만. */
+    private val FACILITY_OWNER_KEYWORDS = listOf(
+        "태양광 설치", "옥상녹화", "노후주택", "단열 시공", "지붕 개량",
+        "주거환경 개선", "집수리", "주택 개보수", "노후 보일러 교체",
+        "미니태양광",
+    )
+
+    /** 반려동물 — 보유자만. */
+    private val PET_KEYWORDS = listOf(
+        "반려동물", "반려견", "반려묘", "광견병", "동물보호", "반려인",
+    )
+
+    /** 학교/교사 — 교원만. */
+    private val SCHOOL_STAFF_KEYWORDS = listOf(
+        "교원", "교사 대상", "학교장", "사립학교 교직원", "강사 채용",
+        "학교 운영 지원", "교직원",
+    )
+
+    /** 재난·이재민 — 재난 당사자만 (시기적). */
+    private val DISASTER_VICTIM_KEYWORDS = listOf(
+        "이재민", "재난피해 가구", "수해 복구", "한파 피해", "재해 위로금",
+        "재난지원금", "이재 가구",
+    )
+
+    /** R&D / 특허 / 연구원 — 일반 사용자 X. */
+    private val RND_KEYWORDS = listOf(
+        "R&D 과제", "연구개발 과제", "특허 출원", "특허 분쟁",
+        "연구장비", "연구과제 지원",
+    )
+
+    /** 예술인 — occupation="예술인"만. */
+    private val ARTIST_KEYWORDS = listOf(
+        "예술인 지원", "공연예술 종사", "전통예술 종사",
+        "예술인 패스", "예술인 복지", "창작 지원금",
+    )
+
+    /** 소상공인/사업체/법인 — occupation="사업자"만. */
+    private val BUSINESS_OWNER_KEYWORDS = listOf(
+        "소상공인", "자영업", "중소기업", "법인 대상", "사업체 대상",
+        "협동조합 지원", "전통시장 상인", "상점가", "프랜차이즈",
+    )
+
+    /** 청소년/학교밖 — 만 18세 이하만. */
+    private val YOUTH_KEYWORDS = listOf(
+        "청소년", "학교밖", "학교 밖 청소년", "중도탈락",
+    )
+
+    /** 저소득/수급자/차상위 — isLowIncome 토글 켰을 때만. */
+    private val LOW_INCOME_KEYWORDS = listOf(
+        "수급자", "수급권자", "차상위", "기초생활", "저소득",
+        "취약계층", "긴급복지",
+    )
+
+    /**
+     * 키워드 기반 sensitive 정책 판단.
+     * 사용자 마크에 따라 해당 카테고리 키워드는 통과시킴.
+     * 일부 카테고리(행정/피해자/시설/질병/특수직업)는 사용자 토글 X — 일반 사용자에게 의미 0.
+     */
+    fun isSensitiveExclusion(policy: Policy, profile: UserProfile): Boolean {
         val text = "${policy.title} ${policy.summary}"
-        return SENSITIVE_KEYWORDS.any { text.contains(it) }
+
+        // 항상 제외 카테고리 (사용자 토글 X)
+        if (ADMIN_KEYWORDS.any { text.contains(it) }) return true
+        if (VICTIM_KEYWORDS.any { text.contains(it) }) return true
+        if (FACILITY_KEYWORDS.any { text.contains(it) }) return true
+        if (DISEASE_KEYWORDS.any { text.contains(it) }) return true
+        if (SPECIAL_OCCUPATION_KEYWORDS.any { text.contains(it) }) return true
+        if (ADOPTION_KEYWORDS.any { text.contains(it) }) return true
+        // 자동 제외 — 특정 보유자/대상만 받는 정책
+        if (VEHICLE_EQUIPMENT_KEYWORDS.any { text.contains(it) }) return true
+        if (FACILITY_OWNER_KEYWORDS.any { text.contains(it) }) return true
+        if (PET_KEYWORDS.any { text.contains(it) }) return true
+        if (SCHOOL_STAFF_KEYWORDS.any { text.contains(it) }) return true
+        if (DISASTER_VICTIM_KEYWORDS.any { text.contains(it) }) return true
+        if (RND_KEYWORDS.any { text.contains(it) }) return true
+
+        // occupation 기반 분기 — 농어업/예술인/사업자만 통과
+        if (AGRI_FORESTRY_KEYWORDS.any { text.contains(it) } && profile.occupation != "농어업") return true
+        if (ARTIST_KEYWORDS.any { text.contains(it) } && profile.occupation != "예술인") return true
+        if (BUSINESS_OWNER_KEYWORDS.any { text.contains(it) } && profile.occupation != "사업자") return true
+
+        // 청소년/학교밖 — 만 18세 이하만
+        val age = profile.age
+        if (YOUTH_KEYWORDS.any { text.contains(it) } && (age == null || age > 18)) return true
+
+        // 저소득/수급자/차상위 — 본인 토글 켰을 때만 통과
+        if (LOW_INCOME_KEYWORDS.any { text.contains(it) } && !profile.isLowIncome) return true
+
+        // 사용자 마크에 따라 분기
+        val femaleSensitive = listOf("위안부")
+        val veteran = listOf("국가유공자", "보훈", "참전유공", "독립유공")
+        val multicultural = listOf("다문화가족", "다문화가정")
+        val defector = listOf("북한이탈주민", "탈북", "새터민")
+        val singleParent = listOf("한부모", "조손")
+        val disabled = listOf("장애인", "장애아동", "장애학생")
+
+        if (femaleSensitive.any { text.contains(it) } && profile.gender != "여") return true
+        if (veteran.any { text.contains(it) } && !profile.isVeteran) return true
+        if (multicultural.any { text.contains(it) } && !profile.isMulticultural) return true
+        if (defector.any { text.contains(it) } && !profile.isDefector) return true
+        if (singleParent.any { text.contains(it) } && !profile.isSingleParent) return true
+        if (disabled.any { text.contains(it) } && !profile.isDisabled) return true
+        return false
     }
 
     // ─────────────────────────────────────────────────────────────────
     // 종합 판정 — 자격 + 키워드 정밀화 모두 통과해야 true.
     // 홈/검색 양쪽이 같은 정의로 "자격 충족"을 카운트하도록.
     // ─────────────────────────────────────────────────────────────────
+    /** 자녀 관련 정책 키워드 — 자녀 없는 사용자에게 제외. */
+    private val CHILD_KEYWORDS = listOf(
+        "다자녀", "둘째", "셋째", "넷째", "두 자녀", "세 자녀",
+        "자녀가", "자녀를", "자녀의", "자녀 양육",
+        "유아", "영유아", "어린이", "아이",
+        "초등학생", "유치원", "어린이집", "유치원생",
+        "영아", "신생아", "출생아",
+    )
+
+    fun isChildPolicyMismatched(policy: Policy, profile: UserProfile): Boolean {
+        if (profile.hasChildren == true) return false
+        val text = "${policy.title} ${policy.summary}"
+        return CHILD_KEYWORDS.any { text.contains(it) }
+    }
+
+    /** 주거 (무주택) 정책 — 자가 사용자에게 제외. */
+    private val HOMELESS_KEYWORDS = listOf(
+        "무주택", "전세자금", "월세 지원", "월세지원", "임차", "임대주택",
+        "전월세", "주택 매입", "주택 구입",
+    )
+
+    fun isHousingPolicyMismatched(policy: Policy, profile: UserProfile): Boolean {
+        if (profile.housingType == null) return false  // 미입력 시 통과 (관대)
+        if (profile.housingType == "자가") {
+            val text = "${policy.title} ${policy.summary}"
+            return HOMELESS_KEYWORDS.any { text.contains(it) }
+        }
+        return false
+    }
+
+    /** 1인가구 전용 정책 — 1인 사용자만 통과. */
+    private val SINGLE_HOUSEHOLD_KEYWORDS = listOf("1인가구", "1인 가구", "일인가구", "독거")
+
+    fun isSingleHouseholdMismatched(policy: Policy, profile: UserProfile): Boolean {
+        val text = "${policy.title} ${policy.summary}"
+        val isSingleOnly = SINGLE_HOUSEHOLD_KEYWORDS.any { text.contains(it) }
+        if (!isSingleOnly) return false
+        return profile.householdSize != null && profile.householdSize != 1
+    }
+
+    /** 노인 (60세+) 정책 — 30~50대 사용자에게 의미 X. age sentinel 보강용. */
+    private val SENIOR_KEYWORDS = listOf(
+        "노인", "어르신", "고령자", "장년",
+        "노년", "치매 어르신",
+    )
+
+    fun isSeniorPolicyMismatched(policy: Policy, profile: UserProfile): Boolean {
+        val age = profile.age ?: return false
+        if (age >= 60) return false  // 노인 사용자면 통과
+        val text = "${policy.title} ${policy.summary}"
+        return SENIOR_KEYWORDS.any { text.contains(it) }
+    }
+
     fun isEligibleForUser(policy: Policy, profile: UserProfile): Boolean {
         if (!policy.isEligible) return false
-        if (isSensitiveExclusion(policy)) return false
+        if (isSensitiveExclusion(policy, profile)) return false
+        if (isChildPolicyMismatched(policy, profile)) return false
+        if (isHousingPolicyMismatched(policy, profile)) return false
+        if (isSingleHouseholdMismatched(policy, profile)) return false
+        if (isSeniorPolicyMismatched(policy, profile)) return false
         if (!isCategoryRelevant(policy, profile.occupation)) return false
         if (!isRegionRelevant(policy, profile.region)) return false
         if (!isGenderRelevant(policy, profile.gender)) return false

@@ -302,7 +302,7 @@ private fun MissedHeader(amount: Long, count: Int, onClose: () -> Unit) {
         }
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
             Text(
-                text = "당신이 놓친 돈",
+                text = "놓치고 있는 돈",
                 style = MaterialTheme.typography.titleMedium,
                 color = colors.textTertiary,
             )
@@ -314,7 +314,7 @@ private fun MissedHeader(amount: Long, count: Int, onClose: () -> Unit) {
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "${count}건  ·  최근 3년",
+                text = "신청 안 한 ${count}건",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )

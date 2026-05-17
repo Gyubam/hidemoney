@@ -1774,7 +1774,195 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 - GitHub Actions → "정책 자동 빌드" → Run workflow (같은 input)
 - ~5~10분 (concurrent 가속)
 
-### 2026-05-17 (R2.9.5 — 풀빌드 concurrent 가속 ~14x)
+### 2026-05-17 (R7 — WorkManager 알림 + 알림 deep-link + 사용자 토글 확장 + 매칭 broad sentinel fix + 로딩 인디케이터 + 라벨 정리)
+
+> **회사 PC에서 이어할 때 핵심 컨텍스트 — 이 라운드가 매우 큼**
+
+#### A. WorkManager 알림 시스템 (R7-A)
+즐겨찾기 정책 D-3/D-1/D-0 마감 알림. 토스 톤 "받게 만드는 앱" 핵심.
+
+| 파일 | 역할 |
+|---|---|
+| `notification/NotificationHelper.kt` | NotificationChannel 생성 + 알림 발송. PendingIntent(MainActivity + extra "policy_id") |
+| `notification/PolicyDeadlineWorker.kt` | CoroutineWorker. 캐시(filesDir/policies-cache.json) 우선 로드 + remote fallback → favorites 정책 검사 → D-3/D-1/D-0이면 알림 발송 |
+| `notification/NotificationScheduler.kt` | `schedulePeriodic`(24h ± 4h flex, KEEP) + `runOnce`(즐겨찾기 toggle 시 즉시) |
+| `MainActivity.onCreate` | `NotificationScheduler.schedulePeriodic(applicationContext)` 호출 |
+| `MainActivity` 정책 detail onToggleFavorite | favorites toggle 시 `runOnce` 호출 |
+
+의존성: `androidx.work:work-runtime-ktx:2.10.0` 추가 (`libs.versions.toml` + `app/build.gradle.kts`).
+권한: `POST_NOTIFICATIONS` 이미 manifest에 있음.
+
+#### B. 알림 deep-link (R7-B)
+알림 탭 시 정책 detail 직진. `MainActivity`에 `pendingPolicyId: MutableState<String?>` 추가. onCreate/onNewIntent에서 intent extra 픽업. AppRoot LaunchedEffect가 소비 후 `Screen.PolicyDetail`로 진입.
+
+#### C. UserProfile 토글 확장 (R7-C)
+sensitive 5종 + 융자 + 저소득 → 7개 토글 추가.
+
+```kotlin
+val isMulticultural: Boolean = false       // 다문화가족
+val isSingleParent: Boolean = false        // 한부모/조손
+val isDisabled: Boolean = false            // 장애인
+val isVeteran: Boolean = false             // 국가보훈
+val isDefector: Boolean = false            // 북한이탈주민
+val isLowIncome: Boolean = false           // 저소득·수급자·차상위 (R7-G에서 추가)
+val includeLoanGrants: Boolean = false     // 융자 정책 포함
+```
+
+`Occupations.all`에 "농어업", "예술인" 추가 (총 7개: 직장인/학생/사업자/프리랜서/구직 중/농어업/예술인).
+
+Onboarding에 "특수 대상 정책" 섹션 신규 + "표시 옵션" 섹션. `BooleanToggleRow` 신규 컴포저블 (토스 톤 스위치).
+
+UserPrefs 저장/로드 확장.
+
+#### D. 매칭 알고리즘 broad sentinel fix (R7-D) — 핵심 진단
+**근본 원인**: 정부 supportConditions JA 코드가 broad sentinel.
+- 100 sample 정찰에서 JA0401~JA0411 (가족 형태): 60~80% 모든 정책에 활성
+- normalize.py가 JA0411(다자녀) → `requiresChildren=true` inject로 누적 → 풀빌드 데이터 `requiresChildren: 86.3%`, `requiresHousingType: 79.8%`, `maxHouseholdSize: 76.7%` inflate
+- 사용자 hasChildren=false + 자가 → 86% × 79.8% ≈ 60% 정책 자동 fail (거짓 양성 누적)
+
+**fix**: `PolicyMatching`에서 매칭 무시 + `PolicyRelevance` 키워드 기반 분기
+- `hasEffectiveCondition`에서 `requiresChildren / requiresHousingType / maxHouseholdSize / minHouseholdSize / minChildCount / sensitive 5종 (requiresMulticultural 등)` 제외 (broad sentinel)
+- 매칭 통과는 신뢰도 높은 필드만: `effectiveMinAge / effectiveMaxAge / regions / effectiveRequiresOccupation / requiresMarried / maxIncomeMonthly / maxIncomePercent / requiresEducation`
+- 키워드는 `PolicyRelevance.isEligibleForUser`에서 처리 (홈/검색 공통)
+
+#### E. PolicyRelevance 키워드 그룹 (R7-E) — 매우 세세함
+`isEligibleForUser(policy, profile)` 결정 순서:
+
+```kotlin
+1. policy.isEligible 통과
+2. !isSensitiveExclusion(policy, profile)
+3. !isChildPolicyMismatched(policy, profile)
+4. !isHousingPolicyMismatched(policy, profile)
+5. !isSingleHouseholdMismatched(policy, profile)
+6. !isSeniorPolicyMismatched(policy, profile)
+7. isCategoryRelevant(policy, occupation) — 사업자 외 창업 제외
+8. isRegionRelevant(policy, region) — 광역 추출 + 시군구 → 광역 매핑
+9. isGenderRelevant(policy, gender) — 출산은 부부 정책 (남성도 OK)
+```
+
+**isSensitiveExclusion 키워드 그룹** (PolicyRelevance.kt):
+- **항상 제외 (사용자 토글 X)**:
+  - `ADMIN_KEYWORDS`: 범죄수익/환수/벌금/재소자/보호관찰/교정
+  - `VICTIM_KEYWORDS`: 가정폭력/성폭력/학교폭력/스토킹/아동학대
+  - `FACILITY_KEYWORDS`: LPG용기/보일러 교체/지하수/축사/온실
+  - `DISEASE_KEYWORDS`: C형간염/희귀질환/암환자/치매/투석
+  - `SPECIAL_OCCUPATION_KEYWORDS`: 광업/원양어업/임업/축산농가/건축주/택시사업자
+  - `ADOPTION_KEYWORDS`: 입양/위탁가정/유기동물
+  - `VEHICLE_EQUIPMENT_KEYWORDS`: 노후경유차/이륜차/전기차 보조/어선/농기계
+  - `FACILITY_OWNER_KEYWORDS`: 태양광 설치/노후주택/단열/보일러 교체/주택 개보수
+  - `PET_KEYWORDS`: 반려동물/반려견/반려묘/광견병
+  - `SCHOOL_STAFF_KEYWORDS`: 교원/교사 대상/학교장/사립학교 교직원
+  - `DISASTER_VICTIM_KEYWORDS`: 이재민/재난피해/수해/한파/재난지원금
+  - `RND_KEYWORDS`: R&D 과제/특허 출원/연구장비
+- **사용자 토글/occupation 분기**:
+  - `위안부` → gender="여"만
+  - `국가유공자/보훈/참전유공/독립유공` → isVeteran=true만
+  - `다문화가족/다문화가정` → isMulticultural=true만
+  - `북한이탈주민/탈북/새터민` → isDefector=true만
+  - `한부모/조손` → isSingleParent=true만
+  - `장애인/장애아동/장애학생` → isDisabled=true만
+  - `AGRI_FORESTRY_KEYWORDS` (농업인/어업인/축산농가/임업 종사/농가소득/농어가...) → occupation="농어업"만
+  - `ARTIST_KEYWORDS` (예술인 지원/공연예술 종사/전통예술 종사/창작 지원금) → occupation="예술인"만
+  - `BUSINESS_OWNER_KEYWORDS` (소상공인/자영업/중소기업/법인 대상/협동조합 지원/전통시장 상인) → occupation="사업자"만
+  - `YOUTH_KEYWORDS` (청소년/학교밖/학교 밖 청소년/중도탈락) → age ≤ 18만
+  - `LOW_INCOME_KEYWORDS` (수급자/수급권자/차상위/기초생활/저소득/취약계층/긴급복지) → isLowIncome=true만
+
+**키워드 기반 분기 (별도 함수)**:
+- `isChildPolicyMismatched`: `CHILD_KEYWORDS` (다자녀/둘째/셋째/유아/영유아/어린이/초등학생/유치원/어린이집/영아/신생아) → hasChildren=false면 제외
+- `isHousingPolicyMismatched`: `HOMELESS_KEYWORDS` (무주택/전세자금/월세 지원/임차/임대주택/주택 매입) → housingType="자가"만 제외
+- `isSingleHouseholdMismatched`: `SINGLE_HOUSEHOLD_KEYWORDS` (1인가구/일인가구/독거) → householdSize != 1이면 제외
+- `isSeniorPolicyMismatched`: `SENIOR_KEYWORDS` (노인/어르신/고령자/장년/노년/치매 어르신) → age < 60이면 제외
+
+**business 정밀화**:
+- `BUSINESS_STRONG_KEYWORDS` (창업/스타트업/사업화/벤처/기업가/K-스타트업/사업자): 단독 OK
+- `BUSINESS_COMPETITION_BIGRAMS` (창업 공모전/사업화 공모전/스타트업 경진대회/K-스타트업): 결합어만. 일반 공모전 false positive 회피
+
+**region 정밀화**:
+- `PROVINCIAL_REGIONS` (17 광역): applicationOrg substring 우선
+- `MUNICIPALITY_TO_REGION` 시군구 매핑: 서울 25개 구 + 경기 30+개 시 + 광역시·지방 100+개 시군구
+- `LOCAL_GOV_PATTERN = (시|군|구)청?$`: 광역 추출 실패 + 시군구 패턴이면 strict 제외 (여수시·곡성군 케이스)
+
+**gender 정밀화**:
+- `FEMALE_KEYWORDS = 여성/여학생/여자/임산부/산모/산후/임신` (출산 제거 — 부부 정책)
+- `MALE_KEYWORDS = 남성/남학생/남자`
+- 양쪽 다 등장 = 일반 정책 통과
+
+#### F. HomeAggregator 매칭 + 표시 (R7-F)
+```kotlin
+val matched = allPolicies.matchedWith(profile).withFreshDaysLeft(today)
+val eligible = matched.filter { PolicyRelevance.isEligibleForUser(it, profile) }
+val withDeadline = eligible.filter { it.deadline.isNotBlank() }
+
+// missed 후보 — eligible에서 amount/grantType 추가 필터
+val missedCandidates = eligible.filter { p ->
+    if (p.amount <= 0) return@filter false
+    if (p.grantType.isEmpty()) return@filter false           // 풀빌드 후 100% 채워짐 — strict
+    val isLoan = p.grantType.any { it in LOAN_GRANT_TYPES }
+    if (isLoan && !profile.includeLoanGrants) return@filter false
+    isLoan || p.grantType.any { it in MISSED_GRANT_TYPES }
+}
+```
+
+`MISSED_GRANT_TYPES = 현금/현금(감면)/현금(장학금)/현물/이용권`
+`LOAN_GRANT_TYPES = 현금(융자)`
+
+#### G. 로딩 인디케이터 (R7-G)
+첫 진입 시 SampleData 19개로 시작 → cache loadAll → remote refresh → 9923개 갱신. 그 사이 "0원 0건" 보이던 거 fix.
+- `MainActivity`에 `isLoading: Boolean` state
+- HomeScreen.kt `HomeScreen(isLoading)` prop + `ImpactCardLoading` 컴포저블 (CircularProgressIndicator + "분석 중… / 정부 9,923개 정책을 살펴보고 있어요")
+- LaunchedEffect refresh 완료 시 `isLoading = false`
+
+#### H. MissedSheet Dialog 교체 + 라벨 정리 (R7-H)
+**Dialog 교체** (R6 일부 — 정리):
+- Material3 ModalBottomSheet 한계 (confirmValueChange로도 sheet drag gesture visual 멈춤 X)
+- `androidx.compose.ui.window.Dialog` + 자체 Box bottom-aligned sheet로 교체
+- 닫기: 헤더 X 버튼 / outside dim 탭 / `SwipeableDragHandle`(80px+ 아래로 swipe)
+- LazyColumn 안 nestedScroll connection으로 drag만 차단, fling은 자유
+
+**라벨**:
+- HomeScreen ImpactCard: "당신이 놓친 돈" → "놓치고 있는 돈"
+- "지난 3년 · 미신청 N건" → "신청 안 한 N건"
+- MissedSheet 헤더: "당신이 놓친 돈" → "놓치고 있는 돈"
+- "N건 · 최근 3년" → "신청 안 한 N건"
+
+#### I. normalize.py + schema.py (R7-I — 풀빌드 후 발현)
+JA 코드 매핑 추가 (다음 풀빌드에서 적용):
+- JA0411 (다자녀) → `minChildCount=2 + requiresChildren=true` (현재 sentinel inflate 원인. 향후 broad detection 추가 필요)
+- JA0401 (다문화) → `requiresMulticultural=true`
+- JA0402 (북한이탈) → `requiresDefector=true`
+- JA0403 (한부모/조손) → `requiresSingleParent=true`
+- JA0328 (장애인) → `requiresDisabled=true`
+- JA0329 (보훈) → `requiresVeteran=true`
+
+`tools/schema.py` Pydantic도 확장.
+
+⚠️ **데이터는 풀빌드 결과(`docs/policies.json`)에 이미 들어가 있음** (사용자가 R6 이후 풀빌드 한 번 트리거함, commit `344e8cc`).
+하지만 클라이언트는 이 필드 매칭을 무시 (sentinel inflate). PolicyRelevance 키워드만 활용.
+
+#### J. workflow push 충돌 fix (R7-J)
+풀빌드 도는 사이 main 갱신되면 push reject되던 사고. `.github/workflows/crawl-policies.yml`에 `git pull --rebase origin main` + 최대 3회 재시도 추가.
+
+---
+
+### 회사 PC에서 이어할 때 — 다음 라운드 후보
+
+#### 우선순위 높음
+1. **Firebase Auth (Google 로그인)** — 계정 동기화 (favorites/profile cross-device). 큰 작업
+2. **검색 필터 확장** — 금액 범위 / amount 정렬 / 마감 임박 정렬 등
+3. **사용자 피드백 학습** — "이 정책 안 맞아요" 버튼 → Firebase 기록 → 향후 ML/규칙 개선
+
+#### 중기 (LLM 정련 — R2.9 백필)
+- amount 정밀화 (정규식 42% → LLM 80%+)
+- period 채움 (현재 0%)
+- summary 토스 톤 정련
+- Gemini Flash로 정책 1개당 ~2회 호출. 100건씩 수동 트리거. throttling 5초
+
+#### 보류
+- 다자녀 자녀 수 매칭 — UserProfile에 `childCount` 추가됨. 근데 normalize의 minChildCount(JA0411)가 sentinel 78%라 매칭 무시 중. 향후 broad detection 후 활용
+- 학력 매핑 — JA21xx/JA22xx swagger에 없음. 100 sample 정찰에선 농어업 코드였음
+- normalize broad detection — JA04xx 시리즈 N개 이상 활성 시 룰 제외 (다음 풀빌드 트리거 필요)
+
+
 
 **상황**: 사용자 풀빌드 1.5시간 너무 느림.
 

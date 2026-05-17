@@ -29,6 +29,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.LaunchedEffect
 import com.hiddensubsidy.app.data.CachedPolicyRepository
 import com.hiddensubsidy.app.data.FavoritesRepository
+import com.hiddensubsidy.app.notification.NotificationScheduler
 import com.hiddensubsidy.app.data.HomeAggregator
 import com.hiddensubsidy.app.data.InMemoryPolicyRepository
 import com.hiddensubsidy.app.data.PolicyRepository
@@ -59,21 +60,43 @@ import com.hiddensubsidy.app.ui.profile.ProfileEditScreen
 import com.hiddensubsidy.app.ui.theme.HiddenSubsidyTheme
 
 class MainActivity : ComponentActivity() {
+
+    // 알림 deep-link로 전달된 정책 ID. AppRoot LaunchedEffect가 소비.
+    private val pendingPolicyId = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val prefs = getSharedPreferences("hs_prefs", Context.MODE_PRIVATE)
+        // 매일 1회 정책 마감 검사 (즐겨찾기 정책 D-3/D-1/D-0 알림). KEEP 정책이라 중복 X
+        NotificationScheduler.schedulePeriodic(applicationContext)
+        // 알림 클릭으로 진입한 경우 policy id 픽업
+        pendingPolicyId.value = intent?.getStringExtra(
+            com.hiddensubsidy.app.notification.NotificationHelper.EXTRA_POLICY_ID
+        )
         setContent {
             HiddenSubsidyTheme {
-                Root(prefs)
+                Root(prefs, pendingPolicyId.value) { pendingPolicyId.value = null }
             }
         }
+    }
+
+    /** 앱이 이미 실행 중일 때 알림 클릭으로 들어온 경우 */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra(
+            com.hiddensubsidy.app.notification.NotificationHelper.EXTRA_POLICY_ID
+        )?.let { pendingPolicyId.value = it }
     }
 }
 
 @Composable
-private fun Root(prefs: SharedPreferences) {
+private fun Root(
+    prefs: SharedPreferences,
+    pendingPolicyId: String? = null,
+    onPolicyIdConsumed: () -> Unit = {},
+) {
     val context = LocalContext.current
     var onboarded by remember { mutableStateOf(prefs.getBoolean("onboarded", false)) }
 
@@ -85,7 +108,7 @@ private fun Root(prefs: SharedPreferences) {
         label = "onboard-gate",
     ) { done ->
         if (done) {
-            AppRoot()
+            AppRoot(pendingPolicyId = pendingPolicyId, onPolicyIdConsumed = onPolicyIdConsumed)
         } else {
             OnboardingScreen(onComplete = { profile ->
                 // onboarded flag만 마크. 프로필 자체는 UserPrefs로 저장 (모든 필드 일관 처리).
@@ -110,7 +133,10 @@ private sealed class Screen {
 }
 
 @Composable
-private fun AppRoot() {
+private fun AppRoot(
+    pendingPolicyId: String? = null,
+    onPolicyIdConsumed: () -> Unit = {},
+) {
     val context = LocalContext.current
     val httpClient = remember {
         HttpClient(OkHttp) {
@@ -129,6 +155,8 @@ private fun AppRoot() {
     }
     val today = remember { java.time.LocalDate.now() }
     var allPolicies by remember { mutableStateOf(SampleData.allPolicies.withFreshDaysLeft(today)) }
+    // 첫 진입 — remote refresh 끝날 때까지 home 카드들 spinner로
+    var isLoading by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         // 1) 캐시 또는 fallback으로 즉시 응답 (daysLeft는 today 기준으로 재계산)
         allPolicies = repository.loadAll().withFreshDaysLeft(today)
@@ -139,6 +167,7 @@ private fun AppRoot() {
         }.onFailure {
             android.util.Log.w("policies-fetch", "Remote refresh failed: ${it.message}")
         }
+        isLoading = false
         // [dev] export — internal cacheDir
         runCatching {
             val file = java.io.File(context.cacheDir, "policies.json")
@@ -195,6 +224,16 @@ private fun AppRoot() {
         }
     }
 
+    // 알림 deep-link — 정책 id 들어오면 detail 진입. 한 번 소비 후 클리어.
+    LaunchedEffect(pendingPolicyId, allPolicies) {
+        val pid = pendingPolicyId ?: return@LaunchedEffect
+        if (allPolicies.any { it.id == pid }) {
+            detailReturnScreen = Screen.Tabs
+            screen = Screen.PolicyDetail(pid)
+            onPolicyIdConsumed()
+        }
+    }
+
     // 온보딩 직후 진입 시 prefs 변경분 반영 — Compose가 ProfileEdit 후 자동 재컴포지션 처리하므로 추가 동기화 불필요
 
     AnimatedContent(
@@ -227,6 +266,7 @@ private fun AppRoot() {
                 byId = byId,
                 onFavoritesClick = { screen = Screen.Favorites },
                 onSearchClick = { screen = Screen.Search },
+                isLoading = isLoading,
             )
 
             is Screen.PolicyDetail -> {
@@ -240,6 +280,8 @@ private fun AppRoot() {
                             favorites = FavoritesRepository.toggle(context, p.id)
                             val msg = if (p.id in favorites) "받을 예정에 추가됐어요" else "받을 예정에서 빠졌어요"
                             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            // 즐겨찾기 변경 시 즉시 1회 검사 (당일 D-3/D-1/D-0 알림 빠진 거 채움)
+                            NotificationScheduler.runOnce(context)
                         },
                     )
                 }
@@ -336,6 +378,7 @@ private fun TabsHost(
     byId: Map<String, com.hiddensubsidy.app.data.model.Policy>,
     onFavoritesClick: () -> Unit,
     onSearchClick: () -> Unit,
+    isLoading: Boolean,
 ) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
@@ -349,6 +392,7 @@ private fun TabsHost(
                     onMissedCardClick = onMissedCardClick,
                     onPolicyClick = onPolicyClick,
                     onSearchClick = onSearchClick,
+                    isLoading = isLoading,
                 )
                 1 -> CalendarScreen(
                     events = calendarEvents,

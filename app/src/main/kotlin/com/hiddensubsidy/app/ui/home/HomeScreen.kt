@@ -59,6 +59,7 @@ fun HomeScreen(
     onSeeAllDeadlines: () -> Unit = {},
     onSeeAllThisWeek: () -> Unit = {},
     onSearchClick: () -> Unit = {},
+    isLoading: Boolean = false,
 ) {
     val colors = AppTheme.colors
 
@@ -76,11 +77,15 @@ fun HomeScreen(
             item {
                 Spacer(Modifier.height(4.dp))
                 Box(modifier = Modifier.padding(horizontal = SIDE_PADDING.dp)) {
-                    ImpactCard(
-                        amount = data.missedTotalAmount,
-                        count  = data.missedCount,
-                        onClick = onMissedCardClick,
-                    )
+                    if (isLoading) {
+                        ImpactCardLoading()
+                    } else {
+                        ImpactCard(
+                            amount = data.missedTotalAmount,
+                            count  = data.missedCount,
+                            onClick = onMissedCardClick,
+                        )
+                    }
                 }
             }
 
@@ -159,6 +164,56 @@ private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit = {}) {
 }
 
 // =============================================================
+// 임팩트 카드 로딩 — 첫 진입 시 9,923개 받는 동안 spinner
+// =============================================================
+@Composable
+private fun ImpactCardLoading() {
+    val colors = AppTheme.colors
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(colors.cardBg)
+            .padding(horizontal = 24.dp, vertical = 28.dp),
+    ) {
+        Column {
+            Text(
+                text = "놓치고 있는 돈",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textTertiary,
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = colors.accent,
+                    strokeWidth = 3.dp,
+                )
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    text = "분석 중…",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.textSecondary,
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(colors.divider)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "정부 9,923개 정책을 살펴보고 있어요",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textTertiary,
+            )
+        }
+    }
+}
+
+// =============================================================
 // 임팩트 카드 — 핵심 후크
 // =============================================================
 @Composable
@@ -174,7 +229,7 @@ private fun ImpactCard(amount: Long, count: Int, onClick: () -> Unit) {
     ) {
         Column {
             Text(
-                text = "당신이 놓친 돈",
+                text = "놓치고 있는 돈",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textTertiary,
             )
@@ -194,7 +249,7 @@ private fun ImpactCard(amount: Long, count: Int, onClick: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "지난 3년 · 미신청 ${count}건",
+                    text = "신청 안 한 ${count}건",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textSecondary,
                     modifier = Modifier.weight(1f),

@@ -61,11 +61,13 @@ object HomeAggregator {
 
         // 놓친 돈 후보 — eligible(PolicyRelevance 통과)에서 amount/grantType 추가 필터.
         // 풀빌드 후 grantType 100% 채워졌으니 strict — 빈 grantType은 매칭 X.
+        // 사용자가 융자 포함 토글 켜면 융자도 포함.
         val missedCandidates = eligible.filter { p ->
             if (p.amount <= 0) return@filter false
             if (p.grantType.isEmpty()) return@filter false
-            if (p.grantType.any { it in LOAN_GRANT_TYPES }) return@filter false
-            p.grantType.any { it in MISSED_GRANT_TYPES }
+            val isLoan = p.grantType.any { it in LOAN_GRANT_TYPES }
+            if (isLoan && !profile.includeLoanGrants) return@filter false
+            isLoan || p.grantType.any { it in MISSED_GRANT_TYPES }
         }
         val missedTotalAmount = missedCandidates.sumOf { it.amount }
         val missedCount = missedCandidates.size

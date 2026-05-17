@@ -42,26 +42,25 @@ private fun EligibilityRule.effectiveRequiresOccupation(): List<String>? {
     return if (ALL_OCCUPATIONS_FROM_DATA.all { it in set }) null else req
 }
 
-/** sentinel 무시 후 의미 있는 조건이 0개면 룰 사실상 없음 — 매칭 불가로 처리. */
+/**
+ * sentinel 무시 후 의미 있는 조건이 0개면 룰 사실상 없음 — 매칭 불가로 처리.
+ *
+ * broad sentinel 신뢰도 X 필드는 effective condition에서 제외:
+ * - requiresChildren (JA0411 inject로 86% inflate)
+ * - maxHouseholdSize (JA0404 sentinel 76.7%)
+ * - requiresHousingType (JA0412 sentinel 79.8%)
+ * - minChildCount + sensitive 5종 (JA04xx sentinel 60~80%)
+ * 키워드 기반 분류는 PolicyRelevance가 처리.
+ */
 private fun EligibilityRule.hasEffectiveCondition(): Boolean {
     if (effectiveMinAge() != null) return true
     if (effectiveMaxAge() != null) return true
     if (regions != null) return true
     if (effectiveRequiresOccupation() != null) return true
     if (requiresMarried != null) return true
-    if (requiresChildren != null) return true
-    if (minChildCount != null) return true
-    if (requiresMulticultural == true) return true
-    if (requiresDefector == true) return true
-    if (requiresSingleParent == true) return true
-    if (requiresDisabled == true) return true
-    if (requiresVeteran == true) return true
     if (maxIncomeMonthly != null) return true
     if (maxIncomePercent != null) return true
-    if (maxHouseholdSize != null) return true
-    if (minHouseholdSize != null) return true
     if (requiresEducation != null) return true
-    if (requiresHousingType != null) return true
     return false
 }
 
@@ -97,21 +96,10 @@ fun EligibilityRule.matches(profile: UserProfile): Boolean {
         val m = profile.married ?: return false
         if (m != req) return false
     }
-    requiresChildren?.let { req ->
-        val c = profile.hasChildren ?: return false
-        if (c != req) return false
-    }
-    minChildCount?.let { min ->
-        // 다자녀 정책 — childCount 부재 시 false (strict). hasChildren=false면 자동 fail.
-        val cc = profile.childCount ?: return false
-        if (cc < min) return false
-    }
-    // Sensitive — UserProfile에 정보 없음 → strict 자동 false
-    if (requiresMulticultural == true) return false
-    if (requiresDefector == true) return false
-    if (requiresSingleParent == true) return false
-    if (requiresDisabled == true) return false
-    if (requiresVeteran == true) return false
+    // requiresChildren도 broad sentinel 가능 (JA0411 inject로 86% inflate).
+    // 매칭에서 무시. 키워드 기반은 PolicyRelevance(isChildPolicyMismatched)에서.
+    // minChildCount + sensitive 5종은 데이터 sentinel로 78%+ 활성 = 신뢰도 X.
+    // 매칭에서 무시. 키워드 기반 분류는 PolicyRelevance에서.
     maxIncomeMonthly?.let { max ->
         val inc = profile.incomeMonthly ?: return false
         if (inc > max) return false
@@ -124,21 +112,11 @@ fun EligibilityRule.matches(profile: UserProfile): Boolean {
         val userPct = (inc * 100 / median).toInt()
         if (userPct > maxPct) return false
     }
-    maxHouseholdSize?.let { max ->
-        val hs = profile.householdSize ?: return false
-        if (hs > max) return false
-    }
-    minHouseholdSize?.let { min ->
-        val hs = profile.householdSize ?: return false
-        if (hs < min) return false
-    }
+    // maxHouseholdSize(JA0404 sentinel 76.7%) / requiresHousingType(JA0412 sentinel 79.8%)도 broad.
+    // 매칭에서 무시. 키워드 기반은 PolicyRelevance에서.
     requiresEducation?.let { allowed ->
         val edu = profile.education ?: return false
         if (edu !in allowed) return false
-    }
-    requiresHousingType?.let { allowed ->
-        val house = profile.housingType ?: return false
-        if (house !in allowed) return false
     }
     return true
 }

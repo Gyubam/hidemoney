@@ -426,6 +426,69 @@ internal fun ProfileInputPage(
                     onClick = { openSheet = PickerSheet.ChildCount },
                 )
             }
+
+            Spacer(Modifier.height(28.dp))
+            Text(
+                text = "특수 대상 정책",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "해당되는 항목만 켜주세요 (받을 수 있는 정책에 포함됨)",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textTertiary,
+            )
+            Spacer(Modifier.height(12.dp))
+            BooleanToggleRow(
+                label = "다문화가족",
+                value = profile.isMulticultural,
+                onChange = { onChange(profile.copy(isMulticultural = it)) },
+            )
+            Spacer(Modifier.height(8.dp))
+            BooleanToggleRow(
+                label = "한부모/조손가정",
+                value = profile.isSingleParent,
+                onChange = { onChange(profile.copy(isSingleParent = it)) },
+            )
+            Spacer(Modifier.height(8.dp))
+            BooleanToggleRow(
+                label = "장애인",
+                value = profile.isDisabled,
+                onChange = { onChange(profile.copy(isDisabled = it)) },
+            )
+            Spacer(Modifier.height(8.dp))
+            BooleanToggleRow(
+                label = "국가보훈대상자",
+                value = profile.isVeteran,
+                onChange = { onChange(profile.copy(isVeteran = it)) },
+            )
+            Spacer(Modifier.height(8.dp))
+            BooleanToggleRow(
+                label = "북한이탈주민",
+                value = profile.isDefector,
+                onChange = { onChange(profile.copy(isDefector = it)) },
+            )
+            Spacer(Modifier.height(8.dp))
+            BooleanToggleRow(
+                label = "저소득·수급자·차상위",
+                value = profile.isLowIncome,
+                onChange = { onChange(profile.copy(isLowIncome = it)) },
+            )
+
+            Spacer(Modifier.height(28.dp))
+            Text(
+                text = "표시 옵션",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(12.dp))
+            BooleanToggleRow(
+                label = "융자(대출) 정책 포함",
+                value = profile.includeLoanGrants,
+                onChange = { onChange(profile.copy(includeLoanGrants = it)) },
+            )
+
             Spacer(Modifier.height(40.dp))
         }
 
@@ -601,6 +664,45 @@ private fun ToggleRow(
         Spacer(Modifier.width(6.dp))
         ToggleChip(text = "아니오", selected = value == false) {
             onChange(if (value == false) null else false)
+        }
+    }
+}
+
+@Composable
+private fun BooleanToggleRow(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
+    val colors = AppTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.cardBg)
+            .clickable { onChange(!value) }
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        // 토글 스위치 흉내 — 작은 pill
+        Box(
+            modifier = Modifier
+                .width(44.dp)
+                .height(24.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(if (value) colors.accent else colors.cardBorder),
+        ) {
+            val align = if (value) Alignment.CenterEnd else Alignment.CenterStart
+            Box(
+                modifier = Modifier
+                    .align(align)
+                    .padding(horizontal = 2.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(colors.cardBg),
+            )
         }
     }
 }

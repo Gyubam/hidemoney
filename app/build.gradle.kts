@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.androidx.work.runtime.ktx)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
