@@ -77,6 +77,24 @@ object PolicyRelevance {
     private val FEMALE_KEYWORDS = listOf("여성", "여학생", "여자", "임산부", "산모", "산후", "임신")
     private val MALE_KEYWORDS = listOf("남성", "남학생", "남자")
 
+    /**
+     * Sensitive 카테고리 — 일반 사용자(이런 정보 입력 안 함) 가정으로 default 제외.
+     * 향후 UserProfile에 옵션 추가하면 사용자가 해당이면 노출 가능.
+     *
+     * - 정부 특정 신분(북한이탈/다문화/한부모/장애/보훈) → 해당자만 받음
+     * - 행정 정책(범죄수익/환수/압수) → 일반 지원금 아님
+     */
+    private val SENSITIVE_KEYWORDS = listOf(
+        "북한이탈주민", "탈북", "새터민",
+        "다문화가족", "다문화가정",
+        "한부모", "조손",
+        "장애인", "장애아동", "장애학생",
+        "국가유공자", "보훈", "참전유공",
+        "범죄수익", "범죄피해", "환수", "압수", "벌금",
+        "재소자", "출소자", "보호관찰",
+        "독립유공", "위안부",
+    )
+
     // ─────────────────────────────────────────────────────────────────
     // 개별 검사
     // ─────────────────────────────────────────────────────────────────
@@ -132,12 +150,18 @@ object PolicyRelevance {
         return true
     }
 
+    fun isSensitiveExclusion(policy: Policy): Boolean {
+        val text = "${policy.title} ${policy.summary}"
+        return SENSITIVE_KEYWORDS.any { text.contains(it) }
+    }
+
     // ─────────────────────────────────────────────────────────────────
     // 종합 판정 — 자격 + 키워드 정밀화 모두 통과해야 true.
     // 홈/검색 양쪽이 같은 정의로 "자격 충족"을 카운트하도록.
     // ─────────────────────────────────────────────────────────────────
     fun isEligibleForUser(policy: Policy, profile: UserProfile): Boolean {
         if (!policy.isEligible) return false
+        if (isSensitiveExclusion(policy)) return false
         if (!isCategoryRelevant(policy, profile.occupation)) return false
         if (!isRegionRelevant(policy, profile.region)) return false
         if (!isGenderRelevant(policy, profile.gender)) return false

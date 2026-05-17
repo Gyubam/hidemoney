@@ -29,6 +29,11 @@ class EligibilityRule(BaseModel):
     requiresMarried: Optional[bool] = None
     requiresChildren: Optional[bool] = None
     minChildCount: Optional[int] = None
+    requiresMulticultural: Optional[bool] = None
+    requiresDefector: Optional[bool] = None
+    requiresSingleParent: Optional[bool] = None
+    requiresDisabled: Optional[bool] = None
+    requiresVeteran: Optional[bool] = None
     maxIncomeMonthly: Optional[int] = None
     maxIncomePercent: Optional[int] = None
     maxHouseholdSize: Optional[int] = None

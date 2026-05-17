@@ -51,6 +51,11 @@ private fun EligibilityRule.hasEffectiveCondition(): Boolean {
     if (requiresMarried != null) return true
     if (requiresChildren != null) return true
     if (minChildCount != null) return true
+    if (requiresMulticultural == true) return true
+    if (requiresDefector == true) return true
+    if (requiresSingleParent == true) return true
+    if (requiresDisabled == true) return true
+    if (requiresVeteran == true) return true
     if (maxIncomeMonthly != null) return true
     if (maxIncomePercent != null) return true
     if (maxHouseholdSize != null) return true
@@ -101,6 +106,12 @@ fun EligibilityRule.matches(profile: UserProfile): Boolean {
         val cc = profile.childCount ?: return false
         if (cc < min) return false
     }
+    // Sensitive — UserProfile에 정보 없음 → strict 자동 false
+    if (requiresMulticultural == true) return false
+    if (requiresDefector == true) return false
+    if (requiresSingleParent == true) return false
+    if (requiresDisabled == true) return false
+    if (requiresVeteran == true) return false
     maxIncomeMonthly?.let { max ->
         val inc = profile.incomeMonthly ?: return false
         if (inc > max) return false

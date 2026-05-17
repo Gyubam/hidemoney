@@ -89,6 +89,20 @@ def conditions_to_eligibility_rule(cond: Optional[Dict[str, Any]]) -> Optional[D
         rule["minChildCount"] = 2
         rule["requiresChildren"] = True
 
+    # Sensitive 카테고리 — UserProfile에 해당 필드 없어서 strict로 다 제외됨.
+    # 정책에 마크만 해두고 PolicyMatching에서 사용자 정보 부재 시 false 처리.
+    # 향후 사용자 옵션 추가하면 토글 가능.
+    if _yn(cond.get("JA0401")):
+        rule["requiresMulticultural"] = True
+    if _yn(cond.get("JA0402")):
+        rule["requiresDefector"] = True  # 북한이탈주민
+    if _yn(cond.get("JA0403")):
+        rule["requiresSingleParent"] = True  # 한부모/조손
+    if _yn(cond.get("JA0328")):
+        rule["requiresDisabled"] = True
+    if _yn(cond.get("JA0329")):
+        rule["requiresVeteran"] = True  # 국가보훈대상
+
     # 소득 — JA0201~JA0205 (중위소득 0~50, 51~75, 76~100, 101~200, 200%+)
     # broad detection: 5개 다 활성 또는 JA0205 활성이면 사실상 무관.
     income_tiers = [
