@@ -1738,6 +1738,50 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 - 같은 input (crawl=true, list_only=false, enrich=false, limit=0, user_type=개인,가구, merge=false)
 - ~5~10분에 끝남
 
+### 2026-05-17 (R2.9.6 — 추가 정밀화 + UX fix)
+
+**상황**: 풀빌드 완료 후 사용자 피드백 4건 받음. 매칭 84건 → 정밀화 추가.
+
+**A. K-스타트업 등 청년 카테고리에 분류된 창업 정책 제외**:
+- normalize.py 카테고리 매핑 "고용·창업" → 기존 "청년" → **"창업"**으로 변경 (다음 풀빌드부터 적용)
+- HomeAggregator에 키워드 기반 fallback — title/summary에 "창업/스타트업/사업화/벤처/K-스타트업/경진대회/공모전/콘테스트" 들어가면 사업자 외 제외
+- 즉시 효과 + 영구 효과 둘 다
+
+**B. 여수시·곡성군 등 시군구 정책이 서울 사용자에게 노출되던 버그**:
+- HomeAggregator에 `extractRegionFromOrg` + `isLocalGovOrg` 추가
+- applicationOrg 텍스트에서 17 광역 region 추출. 추출되면 사용자 region과 strict 매칭
+- 광역 추출 실패 + 시군구청 패턴 (시|군|구청?$) → strict 제외
+- 중앙부처(보건복지부 등) → 전국 대상 → 통과
+
+**C. 여성농업인 정책이 남성 사용자에게 노출되던 버그**:
+- UserProfile에 `gender: String?` 추가 ("남"/"여")
+- UserPrefs, Onboarding, ProfileEdit에 picker 추가 (Genders 옵션 객체)
+- HomeAggregator `isGenderRelevant` — title/summary 키워드("여성/여학생/여자/임산부/산모/산후/출산/임신" vs "남성/남학생/남자")
+- 양쪽 키워드 다 있으면 일반 정책으로 통과
+- 정부 supportConditions JA0101/JA0102는 거의 100% 둘 다 Y(sentinel)이라 데이터로 매칭 불가, 키워드만으로 처리
+
+**D. MissedSheet swipe 닫기 사고 fix**:
+- LazyColumn 안 스크롤 시 ModalBottomSheet swipe로 forwarding되어 sheet 닫히는 사고
+- 1차 시도: NestedScrollConnection 차단 → LazyColumn 스크롤 자체 막힘
+- 최종 fix: `sheetState`에 `confirmValueChange = { it != SheetValue.Hidden }` — Hidden 상태 변경 차단 → swipe 닫기 무력화
+- 닫기는 outside dim 영역 탭만 (ModalBottomSheet 기본 동작)
+- LazyColumn 스크롤은 정상 작동
+
+**채움률 검증 (사용자 질문 응답)**:
+- eligibility: 98% / eligibilityRule: 99.8% / documents: 93.9% / procedure: 98.3% ✅
+- deadline: 5.1% (한국 정책 95%가 "상시신청") — 정상
+- period: 0% (정부 raw에 구조화 안 됨, summary 텍스트에 묻혀있음) — LLM 백필 시 채움 가능하지만 우선순위 낮음
+
+**효과**:
+- 매칭 84건 → 추가 감소 예상 (region+gender+business 키워드 누적)
+- MissedSheet 스크롤 사고 0
+- 사용자 신뢰도 향상
+
+**남은 한계 + 향후**:
+- 학력 매핑 (swagger에 코드 없음, 정찰 추가 필요) — 보류
+- 사용자 토글 (B 옵션 — 융자 포함/사업 자금 포함) — 향후
+- LLM 백필 (amount 정밀화, summary 토스 톤) — 우선순위 낮음
+
 
 
 **상황**: 어제(05-16) 사용자가 `list_only=false`로 detail 풀빌드 정상 트리거 → `ef15eb4` 커밋(KST 01:09) 18만 줄 추가. documents/eligibilityRule 다 채워짐. 그러나 3시간 뒤 cron이 KST 03:00 정시 + 1시간 14분 실행으로 `0531d25`(KST 04:14) 커밋 떨어지면서 **풀빌드 데이터 통째로 날아감**.

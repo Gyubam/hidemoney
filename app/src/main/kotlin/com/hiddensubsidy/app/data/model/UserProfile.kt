@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class UserProfile(
     val age: Int? = null,
     val region: String? = null,
+    val gender: String? = null,        // "남" / "여"
     val occupation: String? = null,    // 직장인 / 학생 / 사업자 / 프리랜서
     val married: Boolean? = null,
     val hasChildren: Boolean? = null,
@@ -58,6 +59,10 @@ object Regions {
 
 object Occupations {
     val all = listOf("직장인", "학생", "사업자", "프리랜서", "구직 중")
+}
+
+object Genders {
+    val all = listOf("남", "여")
 }
 
 object Educations {

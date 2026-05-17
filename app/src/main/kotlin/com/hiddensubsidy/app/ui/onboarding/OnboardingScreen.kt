@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.hiddensubsidy.app.data.model.Educations
+import com.hiddensubsidy.app.data.model.Genders
 import com.hiddensubsidy.app.data.model.HouseholdSizes
 import com.hiddensubsidy.app.data.model.HousingTypes
 import com.hiddensubsidy.app.data.model.IncomeBrackets
@@ -338,6 +339,16 @@ internal fun ProfileInputPage(
                 onClick = { openSheet = PickerSheet.Region },
             )
 
+            Spacer(Modifier.height(20.dp))
+
+            FieldLabel("성별")
+            Spacer(Modifier.height(6.dp))
+            PickerField(
+                value = profile.gender,
+                placeholder = "성별 선택",
+                onClick = { openSheet = PickerSheet.Gender },
+            )
+
             Spacer(Modifier.height(36.dp))
 
             // 점선 divider
@@ -431,6 +442,11 @@ internal fun ProfileInputPage(
             onPick = { onChange(profile.copy(region = it)); openSheet = null },
             onDismiss = { openSheet = null },
         )
+        PickerSheet.Gender -> GenderSheet(
+            current = profile.gender,
+            onPick = { onChange(profile.copy(gender = it)); openSheet = null },
+            onDismiss = { openSheet = null },
+        )
         PickerSheet.Occupation -> OccupationSheet(
             current = profile.occupation,
             onPick = { onChange(profile.copy(occupation = it)); openSheet = null },
@@ -460,7 +476,7 @@ internal fun ProfileInputPage(
     }
 }
 
-private enum class PickerSheet { Age, Region, Occupation, Income, Household, Education, Housing }
+private enum class PickerSheet { Age, Region, Gender, Occupation, Income, Household, Education, Housing }
 
 // =============================================================
 // 입력 필드들
@@ -753,6 +769,26 @@ private fun OccupationSheet(current: String?, onPick: (String) -> Unit, onDismis
                     selected = o == current,
                     onClick = { onPick(o) },
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GenderSheet(current: String?, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+        containerColor = colors.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
+    ) {
+        SheetTitle("성별")
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
+            Genders.all.forEach { g ->
+                PickerRow(text = g, selected = g == current, onClick = { onPick(g) })
             }
         }
     }

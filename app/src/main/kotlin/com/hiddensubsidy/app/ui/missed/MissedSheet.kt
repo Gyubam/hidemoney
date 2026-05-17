@@ -29,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -61,7 +62,13 @@ fun MissedSheet(
     onNotifyOptIn: () -> Unit = {},
     onGrantClick: (MissedGrant) -> Unit = {},
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // confirmValueChange로 Hidden 상태 변경 차단 → swipe 닫기 무력화.
+    // 닫기는 outside tap만 (ModalBottomSheet 기본 dim 영역 클릭 → onDismissRequest).
+    // LazyColumn 스크롤은 nestedScroll 차단 없이 정상 작동.
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { it != SheetValue.Hidden },
+    )
     val colors = AppTheme.colors
     ModalBottomSheet(
         onDismissRequest = onDismiss,
