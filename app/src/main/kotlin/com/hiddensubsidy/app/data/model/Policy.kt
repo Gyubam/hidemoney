@@ -38,6 +38,7 @@ data class EligibilityRule(
     val requiresOccupation: List<String>? = null,
     val requiresMarried: Boolean? = null,
     val requiresChildren: Boolean? = null,
+    val minChildCount: Int? = null,             // 다자녀 정책 (JA0411 활성 시 보통 2)
     val maxIncomeMonthly: Long? = null,         // 월 소득 이하 (원). 텍스트 정규식 fallback용
     val maxIncomePercent: Int? = null,          // 중위소득 N% 이하 (JA0201~JA0205 직매핑). 가구원수와 짝으로 계산
     val maxHouseholdSize: Int? = null,          // 가구원수 이하 (예: 1인가구 전용은 1)

@@ -49,7 +49,9 @@ import com.hiddensubsidy.app.ui.components.BottomTabBar
 import com.hiddensubsidy.app.ui.detail.PolicyDetailScreen
 import com.hiddensubsidy.app.ui.events.EventDetailScreen
 import com.hiddensubsidy.app.ui.events.EventListScreen
+import com.hiddensubsidy.app.ui.favorites.FavoritesScreen
 import com.hiddensubsidy.app.ui.home.HomeScreen
+import com.hiddensubsidy.app.ui.search.SearchScreen
 import com.hiddensubsidy.app.ui.missed.MissedSheet
 import com.hiddensubsidy.app.ui.my.MyScreen
 import com.hiddensubsidy.app.ui.onboarding.OnboardingScreen
@@ -103,6 +105,8 @@ private sealed class Screen {
     data class PolicyDetail(val id: String) : Screen()
     data class EventDetail(val id: String) : Screen()
     data object ProfileEdit : Screen()
+    data object Favorites : Screen()
+    data object Search : Screen()
 }
 
 @Composable
@@ -166,10 +170,29 @@ private fun AppRoot() {
     }
     var tab by remember { mutableStateOf(0) }
     var screen by remember { mutableStateOf<Screen>(Screen.Tabs) }
+    // detail 진입 직전 screen 보관 — 뒤로 가면 그 화면으로 복원 (Search/Favorites에서 detail 갔다 와도 유지)
+    var detailReturnScreen by remember { mutableStateOf<Screen>(Screen.Tabs) }
     var showMissed by remember { mutableStateOf(false) }
 
+    // detail 진입 시 현재 screen을 returnScreen으로 저장
+    val navigateToPolicyDetail: (com.hiddensubsidy.app.data.model.Policy) -> Unit = { policy ->
+        if (screen !is Screen.PolicyDetail && screen !is Screen.EventDetail) {
+            detailReturnScreen = screen
+        }
+        screen = Screen.PolicyDetail(policy.id)
+    }
+    val navigateToEventDetail: (com.hiddensubsidy.app.data.model.EventBundle) -> Unit = { bundle ->
+        if (screen !is Screen.PolicyDetail && screen !is Screen.EventDetail) {
+            detailReturnScreen = screen
+        }
+        screen = Screen.EventDetail(bundle.eventId)
+    }
+
     BackHandler(enabled = screen !is Screen.Tabs) {
-        screen = Screen.Tabs
+        screen = when (screen) {
+            is Screen.PolicyDetail, is Screen.EventDetail -> detailReturnScreen
+            else -> Screen.Tabs
+        }
     }
 
     // 온보딩 직후 진입 시 prefs 변경분 반영 — Compose가 ProfileEdit 후 자동 재컴포지션 처리하므로 추가 동기화 불필요
@@ -193,8 +216,8 @@ private fun AppRoot() {
                 tab = tab,
                 onTabChange = { tab = it },
                 onMissedCardClick = { showMissed = true },
-                onPolicyClick = { policy -> screen = Screen.PolicyDetail(policy.id) },
-                onEventClick = { bundle -> screen = Screen.EventDetail(bundle.eventId) },
+                onPolicyClick = navigateToPolicyDetail,
+                onEventClick = navigateToEventDetail,
                 home = home,
                 calendarEvents = calendarEvents,
                 onRequestNotification = requestNotif,
@@ -202,6 +225,8 @@ private fun AppRoot() {
                 onEditProfile = { screen = Screen.ProfileEdit },
                 mySummary = mySummary,
                 byId = byId,
+                onFavoritesClick = { screen = Screen.Favorites },
+                onSearchClick = { screen = Screen.Search },
             )
 
             is Screen.PolicyDetail -> {
@@ -210,7 +235,7 @@ private fun AppRoot() {
                     PolicyDetailScreen(
                         policy = p,
                         isFavorite = p.id in favorites,
-                        onBack = { screen = Screen.Tabs },
+                        onBack = { screen = detailReturnScreen },
                         onToggleFavorite = {
                             favorites = FavoritesRepository.toggle(context, p.id)
                             val msg = if (p.id in favorites) "받을 예정에 추가됐어요" else "받을 예정에서 빠졌어요"
@@ -225,8 +250,8 @@ private fun AppRoot() {
                 if (e != null) {
                     EventDetailScreen(
                         bundle = e,
-                        onBack = { screen = Screen.Tabs },
-                        onPolicyClick = { policy -> screen = Screen.PolicyDetail(policy.id) },
+                        onBack = { screen = detailReturnScreen },
+                        onPolicyClick = navigateToPolicyDetail,
                     )
                 }
             }
@@ -240,6 +265,37 @@ private fun AppRoot() {
                         profile = newProfile
                         screen = Screen.Tabs
                     },
+                )
+            }
+
+            is Screen.Search -> {
+                val searchablePolicies = remember(allPolicies, profile) {
+                    allPolicies.matchedWith(profile)
+                }
+                SearchScreen(
+                    allPolicies = searchablePolicies,
+                    profile = profile,
+                    onBack = { screen = Screen.Tabs },
+                    onPolicyClick = navigateToPolicyDetail,
+                )
+            }
+
+            is Screen.Favorites -> {
+                val favoritePolicies = remember(favorites, allPolicies, profile) {
+                    favorites.mapNotNull { byId[it] }
+                        .map { it.matchedWith(profile).withFreshDaysLeft(today) }
+                        .sortedWith(
+                            compareBy(
+                                // 마감 임박 우선 (daysLeft 0~30), 그 외는 amount 큰 순
+                                { if (it.deadline.isNotBlank() && it.daysLeft in 0..30) it.daysLeft else Int.MAX_VALUE },
+                                { -it.amount },
+                            )
+                        )
+                }
+                FavoritesScreen(
+                    favorites = favoritePolicies,
+                    onBack = { screen = Screen.Tabs },
+                    onPolicyClick = navigateToPolicyDetail,
                 )
             }
         }
@@ -278,6 +334,8 @@ private fun TabsHost(
     onEditProfile: () -> Unit,
     mySummary: com.hiddensubsidy.app.data.model.MySummary,
     byId: Map<String, com.hiddensubsidy.app.data.model.Policy>,
+    onFavoritesClick: () -> Unit,
+    onSearchClick: () -> Unit,
 ) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
@@ -290,6 +348,7 @@ private fun TabsHost(
                     data = home,
                     onMissedCardClick = onMissedCardClick,
                     onPolicyClick = onPolicyClick,
+                    onSearchClick = onSearchClick,
                 )
                 1 -> CalendarScreen(
                     events = calendarEvents,
@@ -307,6 +366,7 @@ private fun TabsHost(
                     onInviteFriends = { ShareHelper.inviteFriends(context) },
                     onPrivacyPolicy = { ShareHelper.openPrivacyPolicy(context) },
                     onFeedback = { ShareHelper.sendFeedback(context) },
+                    onFavoritesClick = onFavoritesClick,
                 )
             }
         }

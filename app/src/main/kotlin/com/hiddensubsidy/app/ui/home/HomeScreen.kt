@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -57,6 +58,7 @@ fun HomeScreen(
     onPolicyClick: (Policy) -> Unit = {},
     onSeeAllDeadlines: () -> Unit = {},
     onSeeAllThisWeek: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
 
@@ -68,7 +70,7 @@ fun HomeScreen(
                 bottom = 24.dp,
             ),
         ) {
-            item { TopBar() }
+            item { TopBar(onSearchClick = onSearchClick) }
 
             // === 임팩트 카드 ===
             item {
@@ -117,7 +119,7 @@ fun HomeScreen(
 // 상단바 (토스 메인 홈 36 톤)
 // =============================================================
 @Composable
-private fun TopBar() {
+private fun TopBar(onSearchClick: () -> Unit = {}) {
     val colors = AppTheme.colors
     Row(
         modifier = Modifier
@@ -131,6 +133,7 @@ private fun TopBar() {
             color = colors.textPrimary,
             modifier = Modifier.weight(1f),
         )
+        TopBarIcon(icon = Icons.Rounded.Search, onClick = onSearchClick)
         TopBarIcon(icon = Icons.Rounded.NotificationsNone)
         TopBarIcon(icon = Icons.Rounded.Person)
     }

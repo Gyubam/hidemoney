@@ -28,6 +28,7 @@ class EligibilityRule(BaseModel):
     requiresOccupation: Optional[List[str]] = None
     requiresMarried: Optional[bool] = None
     requiresChildren: Optional[bool] = None
+    minChildCount: Optional[int] = None
     maxIncomeMonthly: Optional[int] = None
     maxIncomePercent: Optional[int] = None
     maxHouseholdSize: Optional[int] = None

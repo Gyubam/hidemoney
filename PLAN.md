@@ -1715,6 +1715,65 @@ keytool -genkey -v -keystore hidemoney-release.jks `
 **향후 옵션 (B 보류)**:
 - 사용자 토글로 "융자 포함" / "사업 자금 포함" 등 활성화. 디폴트는 OFF.
 
+### 2026-05-17 (R4 — 즐겨찾기 목록 화면 + R5 검색·필터 화면)
+
+**R4 즐겨찾기 화면**:
+- `FavoritesScreen.kt` 신규 — 임팩트 카드(받을 예정 총액) + 정책 카드 리스트 (마감 임박 우선, amount 큰 순)
+- MyScreen "받을 예정" 카드 탭 → FavoritesScreen 진입
+- `MainActivity.Screen.Favorites` sealed class 추가
+- 빈 상태 + D-day pill (D-3 이내 빨간 강조)
+
+**R5 검색·필터 화면**:
+- `SearchScreen.kt` 신규 — 검색바 + 카테고리 chip(6개) + 자격 충족/전체 토글 + LazyColumn 결과
+- 홈 TopBar 우상단 🔍 아이콘 → SearchScreen 진입
+- "자격 충족만" 토글 = 홈 missed와 같은 PolicyRelevance (양쪽 일관 통일)
+- 카운트 표시 — "84건 / 전체 9923건 중 자격 충족" 형식
+
+### 2026-05-17 (R6 — 매칭 알고리즘 정밀화 + MissedSheet 통째 교체)
+
+**A. PolicyRelevance 정밀화 (즉시 효과)**:
+- gender FEMALE_KEYWORDS에서 **"출산" 제거** — 부부/남성 아빠도 대상 (false negative fix)
+- business 키워드 — `BUSINESS_STRONG_KEYWORDS` (단독 OK) + `BUSINESS_COMPETITION_BIGRAMS` (결합어만) 분리. 일반 미술/문학 공모전 false positive 해소
+- region — 시군구 → 광역 매핑 테이블 신규 (서울 25구 + 경기 30+ + 광역시·지방 100+개). applicationOrg 추출 정확도 ↑
+
+**B. PolicyMatching 개선**:
+- 소득 매칭 `householdSize` 부재 시 **1인 가정 fallback** — 소득 조건 정책 21.5% 다 사라지던 문제 해소
+- `minChildCount` 필드 추가 (다자녀 매칭)
+- `hasEffectiveCondition`에 minChildCount 포함
+
+**C. HomeAggregator strict**:
+- `grantType.isEmpty()` → false (이전엔 backward compat로 통과). 풀빌드 후 100% 채워졌으니 strict.
+
+**D. UserProfile 확장**:
+- `childCount: Int?` 추가 + Onboarding ChildCount picker (hasChildren=true일 때만 표시)
+- UserPrefs 저장/로드 확장
+
+**E. normalize.py 매핑 추가**:
+- JA0411 (다자녀가구) → `minChildCount=2 + requiresChildren=true`
+- `tools/schema.py` Pydantic에 minChildCount 추가
+
+**F. MissedSheet 통째 교체 — Dialog 방식**:
+- Material3 ModalBottomSheet의 sheet drag gesture가 `confirmValueChange`로도 visual 멈춤 안 되는 한계
+- `androidx.compose.ui.window.Dialog` + 자체 Box bottom-aligned sheet로 교체
+- sheet 자체 swipe gesture 0 — content LazyColumn만 자유 scroll
+- 닫기: 헤더 X 버튼 / outside dim 탭 / dragHandle swipe (SwipeableDragHandle)
+- 카드/카드 사이 빈 공간/자세히보기 클릭+스크롤 어떤 동작에도 sheet 안 닫힘
+
+**G. 학력 매핑 정찰 결과**:
+- JA21xx (JA2101/JA2103) → 학력이 아니라 **농어업 종사자** 코드 (원양어업/천일염/수산자원). swagger에 학력 코드 없음
+- 학력 매핑 보류 — 사용자 입력은 받지만 매칭 X (향후 추가 정찰 필요)
+
+**효과 누적**:
+- 매칭 84건 → 추가 정밀화 (출산 정책 포함 + 시군구 정밀 region + 소득 fallback)
+- 검색 화면 카운트 = 홈 missed 카운트 (PolicyRelevance 공통)
+- MissedSheet 스크롤 사고 0
+- 자녀 수 입력 + 다자녀 매칭 (풀빌드 후 발현)
+
+**사용자 풀빌드 트리거 (R6의 E 부분 발현 위해)**:
+- normalize.py에 JA0411 매핑 추가됨 → minChildCount 데이터 채움 필요
+- GitHub Actions → "정책 자동 빌드" → Run workflow (같은 input)
+- ~5~10분 (concurrent 가속)
+
 ### 2026-05-17 (R2.9.5 — 풀빌드 concurrent 가속 ~14x)
 
 **상황**: 사용자 풀빌드 1.5시간 너무 느림.

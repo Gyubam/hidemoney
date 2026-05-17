@@ -50,6 +50,7 @@ private fun EligibilityRule.hasEffectiveCondition(): Boolean {
     if (effectiveRequiresOccupation() != null) return true
     if (requiresMarried != null) return true
     if (requiresChildren != null) return true
+    if (minChildCount != null) return true
     if (maxIncomeMonthly != null) return true
     if (maxIncomePercent != null) return true
     if (maxHouseholdSize != null) return true
@@ -95,15 +96,20 @@ fun EligibilityRule.matches(profile: UserProfile): Boolean {
         val c = profile.hasChildren ?: return false
         if (c != req) return false
     }
+    minChildCount?.let { min ->
+        // 다자녀 정책 — childCount 부재 시 false (strict). hasChildren=false면 자동 fail.
+        val cc = profile.childCount ?: return false
+        if (cc < min) return false
+    }
     maxIncomeMonthly?.let { max ->
         val inc = profile.incomeMonthly ?: return false
         if (inc > max) return false
     }
     maxIncomePercent?.let { maxPct ->
         val inc = profile.incomeMonthly ?: return false
-        val hs = profile.householdSize ?: return false
-        val median = MEDIAN_INCOME_2026[hs.coerceAtMost(MEDIAN_INCOME_2026.keys.max())]
-            ?: return false
+        // 가구원수 미입력 시 1인 가정 fallback — strict로 다 제외하면 정책 21.5% 사라짐
+        val hs = (profile.householdSize ?: 1).coerceAtMost(MEDIAN_INCOME_2026.keys.max())
+        val median = MEDIAN_INCOME_2026[hs] ?: return false
         val userPct = (inc * 100 / median).toInt()
         if (userPct > maxPct) return false
     }

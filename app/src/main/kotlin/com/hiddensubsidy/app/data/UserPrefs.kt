@@ -18,6 +18,7 @@ object UserPrefs {
             occupation = p.getString("occupation", null),
             married = if (p.contains("married")) p.getBoolean("married", false) else null,
             hasChildren = if (p.contains("has_children")) p.getBoolean("has_children", false) else null,
+            childCount = if (p.contains("child_count")) p.getInt("child_count", 0) else null,
             incomeMonthly = if (p.contains("income_monthly")) p.getLong("income_monthly", 0L) else null,
             householdSize = if (p.contains("household_size")) p.getInt("household_size", 0) else null,
             education = p.getString("education", null),
@@ -34,6 +35,7 @@ object UserPrefs {
             if (profile.occupation != null) putString("occupation", profile.occupation) else remove("occupation")
             if (profile.married != null) putBoolean("married", profile.married) else remove("married")
             if (profile.hasChildren != null) putBoolean("has_children", profile.hasChildren) else remove("has_children")
+            if (profile.childCount != null) putInt("child_count", profile.childCount) else remove("child_count")
             if (profile.incomeMonthly != null) putLong("income_monthly", profile.incomeMonthly) else remove("income_monthly")
             if (profile.householdSize != null) putInt("household_size", profile.householdSize) else remove("household_size")
             if (profile.education != null) putString("education", profile.education) else remove("education")

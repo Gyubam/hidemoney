@@ -84,6 +84,11 @@ def conditions_to_eligibility_rule(cond: Optional[Dict[str, Any]]) -> Optional[D
     if _yn(cond.get("JA0303")):
         rule["requiresChildren"] = True
 
+    # 다자녀가구 (JA0411) — 보통 2명 이상 기준. requiresChildren=true도 함께 inject (자녀 필요)
+    if _yn(cond.get("JA0411")):
+        rule["minChildCount"] = 2
+        rule["requiresChildren"] = True
+
     # 소득 — JA0201~JA0205 (중위소득 0~50, 51~75, 76~100, 101~200, 200%+)
     # broad detection: 5개 다 활성 또는 JA0205 활성이면 사실상 무관.
     income_tiers = [

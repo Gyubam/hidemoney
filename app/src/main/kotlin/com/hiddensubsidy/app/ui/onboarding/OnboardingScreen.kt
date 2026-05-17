@@ -415,8 +415,17 @@ internal fun ProfileInputPage(
             ToggleRow(
                 label = "자녀 있음",
                 value = profile.hasChildren,
-                onChange = { onChange(profile.copy(hasChildren = it)) },
+                onChange = { onChange(profile.copy(hasChildren = it, childCount = if (it != true) null else profile.childCount)) },
             )
+            if (profile.hasChildren == true) {
+                Spacer(Modifier.height(12.dp))
+                OptionPickerField(
+                    label = "자녀 수",
+                    value = profile.childCount?.let { if (it >= 4) "4명 이상" else "${it}명" },
+                    placeholder = "선택 안 함",
+                    onClick = { openSheet = PickerSheet.ChildCount },
+                )
+            }
             Spacer(Modifier.height(40.dp))
         }
 
@@ -472,11 +481,16 @@ internal fun ProfileInputPage(
             onPick = { onChange(profile.copy(housingType = it)); openSheet = null },
             onDismiss = { openSheet = null },
         )
+        PickerSheet.ChildCount -> ChildCountSheet(
+            current = profile.childCount,
+            onPick = { onChange(profile.copy(childCount = it)); openSheet = null },
+            onDismiss = { openSheet = null },
+        )
         null -> {}
     }
 }
 
-private enum class PickerSheet { Age, Region, Gender, Occupation, Income, Household, Education, Housing }
+private enum class PickerSheet { Age, Region, Gender, Occupation, Income, Household, Education, Housing, ChildCount }
 
 // =============================================================
 // 입력 필드들
@@ -861,6 +875,27 @@ private fun EducationSheet(current: String?, onPick: (String) -> Unit, onDismiss
                     selected = e == current,
                     onClick = { onPick(e) },
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChildCountSheet(current: Int?, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val options = listOf(1 to "1명", 2 to "2명", 3 to "3명", 4 to "4명 이상")
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+        containerColor = colors.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
+    ) {
+        SheetTitle("자녀 수")
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
+            options.forEach { (v, label) ->
+                PickerRow(text = label, selected = v == current, onClick = { onPick(v) })
             }
         }
     }

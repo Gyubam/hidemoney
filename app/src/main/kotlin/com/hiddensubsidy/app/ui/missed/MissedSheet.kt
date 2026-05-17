@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,19 +29,27 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,7 +62,11 @@ import com.hiddensubsidy.app.ui.components.formatAmount
 import com.hiddensubsidy.app.ui.theme.AppTheme
 import com.hiddensubsidy.app.ui.theme.Bubble
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Material3 ModalBottomSheet 안 씀 — sheet drag gesture가 confirmValueChange로도 visual 멈춤 안 됨.
+ * Dialog 안 직접 sheet 구현: dim background + bottom 영역 fixed. sheet 자체 swipe X.
+ * 닫기: dragHandle swipe down / 헤더 X 버튼 / outside dim tap.
+ */
 @Composable
 fun MissedSheet(
     data: HomeData,
@@ -62,27 +75,78 @@ fun MissedSheet(
     onNotifyOptIn: () -> Unit = {},
     onGrantClick: (MissedGrant) -> Unit = {},
 ) {
-    // confirmValueChange로 Hidden 상태 변경 차단 → swipe 닫기 무력화.
-    // 닫기는 outside tap만 (ModalBottomSheet 기본 dim 영역 클릭 → onDismissRequest).
-    // LazyColumn 스크롤은 nestedScroll 차단 없이 정상 작동.
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { it != SheetValue.Hidden },
-    )
     val colors = AppTheme.colors
-    ModalBottomSheet(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = colors.background,
-        contentColor = colors.textPrimary,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = true,
+        ),
     ) {
-        MissedSheetBody(
-            data = data,
-            onShare = onShare,
-            onNotifyOptIn = onNotifyOptIn,
-            onGrantClick = onGrantClick,
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f))
+                // outside tap → onDismiss (Dialog의 dismissOnClickOutside가 처리하므로 추가 click X)
+                ,
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            // sheet 자체 — click 처리해서 outside tap 영향 안 받게
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.92f)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .background(colors.background)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    ),
+            ) {
+                androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize()) {
+                    SwipeableDragHandle(onDismiss = onDismiss)
+                    MissedSheetBody(
+                        data = data,
+                        onShare = onShare,
+                        onNotifyOptIn = onNotifyOptIn,
+                        onGrantClick = onGrantClick,
+                        onClose = onDismiss,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * dragHandle 영역만 swipe-to-close 가능하게 직접 gesture detector 부착.
+ * confirmValueChange로 ModalBottomSheet의 기본 swipe close는 다 차단해놨고,
+ * 여기서만 명시적으로 일정 거리 아래로 swipe 시 onDismiss 콜백 호출.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableDragHandle(onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    var dragAccum by remember { mutableFloatStateOf(0f) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (dragAccum > 80f) onDismiss()
+                        dragAccum = 0f
+                    },
+                    onDragCancel = { dragAccum = 0f },
+                ) { change, dragDelta ->
+                    if (dragDelta > 0) dragAccum += dragDelta
+                    change.consume()
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        BottomSheetDefaults.DragHandle(color = colors.cardBorder)
     }
 }
 
@@ -93,32 +157,53 @@ private fun MissedSheetBody(
     onShare: () -> Unit,
     onNotifyOptIn: () -> Unit,
     onGrantClick: (MissedGrant) -> Unit,
+    onClose: () -> Unit,
 ) {
     val colors = AppTheme.colors
     val isEmpty = data.missedGrants.isEmpty() || data.missedTotalAmount == 0L
 
+    // drag만 차단 (onPostScroll). fling(손 뗀 후 inertia)은 차단 안 함 — LazyColumn scroll 자연스럽게.
+    // confirmValueChange로 sheet close는 이미 다 막혀있어서 fling forward돼도 닫히지 않음.
+    val contentScrollBlocker = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset = available
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.92f),
+            .fillMaxHeight(0.92f)
+            .nestedScroll(contentScrollBlocker),
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = if (isEmpty) 32.dp else 112.dp),
         ) {
             item {
-                MissedHeader(amount = data.missedTotalAmount, count = data.missedCount)
+                MissedHeader(
+                    amount = data.missedTotalAmount,
+                    count = data.missedCount,
+                    onClose = onClose,
+                )
             }
 
             if (isEmpty) {
                 item { EmptyMissed(onNotifyOptIn = onNotifyOptIn) }
             } else {
                 item {
-                    Spacer(Modifier.height(20.dp))
-                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    // fillMaxWidth로 wrap해서 touch 영역 확보 — Spacer 단독은 touch 못 받아 sheet swipe로 forward
+                    Box(modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 20.dp, bottom = 20.dp)
+                    ) {
                         ShareCard(onClick = onShare)
                     }
-                    Spacer(Modifier.height(20.dp))
                 }
 
                 val grouped = data.missedGrants
@@ -131,13 +216,17 @@ private fun MissedSheetBody(
                         YearHeader(year = year, total = yearTotal)
                     }
                     items(grants, key = { it.id }) { grant ->
-                        Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        // 카드 + 카드 사이 간격을 한 Box로 묶기 → 전체가 touch 영역 → LazyColumn으로 forward
+                        Box(modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 12.dp)
+                        ) {
                             MissedGrantCard(
                                 grant = grant,
                                 onCtaClick = { onGrantClick(grant) },
                             )
                         }
-                        Spacer(Modifier.height(12.dp))
                     }
                 }
             }
@@ -182,31 +271,54 @@ private fun MissedSheetBody(
 // 시트 헤더 — "당신이 놓친 돈 / 2,400,000원 / 12건 · 최근 3년"
 // =============================================================
 @Composable
-private fun MissedHeader(amount: Long, count: Int) {
+private fun MissedHeader(amount: Long, count: Int, onClose: () -> Unit) {
     val colors = AppTheme.colors
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .padding(top = 8.dp, bottom = 4.dp),
+            .padding(top = 4.dp, bottom = 4.dp),
     ) {
-        Text(
-            text = "당신이 놓친 돈",
-            style = MaterialTheme.typography.titleMedium,
-            color = colors.textTertiary,
-        )
-        Spacer(Modifier.height(8.dp))
-        AnimatedAmount(
-            amount = amount,
-            style = MaterialTheme.typography.displayMedium,
-            color = colors.textPrimary,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "${count}건  ·  최근 3년",
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.textSecondary,
-        )
+        // X 닫기 — 헤더 안 우상단. LazyColumn item이라 스크롤하면 같이 사라짐 (sticky 아님).
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Rounded.Close,
+                    contentDescription = "닫기",
+                    tint = colors.textSecondary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            Text(
+                text = "당신이 놓친 돈",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textTertiary,
+            )
+            Spacer(Modifier.height(8.dp))
+            AnimatedAmount(
+                amount = amount,
+                style = MaterialTheme.typography.displayMedium,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "${count}건  ·  최근 3년",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textSecondary,
+            )
+        }
     }
 }
 

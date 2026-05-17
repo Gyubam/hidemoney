@@ -52,6 +52,7 @@ fun MyScreen(
     onInviteFriends: () -> Unit = {},
     onPrivacyPolicy: () -> Unit = {},
     onFeedback: () -> Unit = {},
+    onFavoritesClick: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
 
@@ -86,6 +87,7 @@ fun MyScreen(
                         label = "받을 예정",
                         count = summary.savedCount,
                         amount = summary.savedAmount,
+                        onClick = onFavoritesClick,
                     )
                 }
                 Spacer(Modifier.height(12.dp))

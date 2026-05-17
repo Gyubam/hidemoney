@@ -10,6 +10,7 @@ data class UserProfile(
     val occupation: String? = null,    // 직장인 / 학생 / 사업자 / 프리랜서
     val married: Boolean? = null,
     val hasChildren: Boolean? = null,
+    val childCount: Int? = null,         // 자녀 수. 다자녀(JA0411) 매칭용. hasChildren=true일 때만 의미
     val incomeMonthly: Long? = null,        // 월 소득 (원). 카테고리 입력의 대표값으로 저장
     val householdSize: Int? = null,         // 가구원수. 4+ 는 4로 캡 저장
     val education: String? = null,          // 학력 ("고졸 미만"/"고졸"/"대학 재학"/"대졸 이상")
