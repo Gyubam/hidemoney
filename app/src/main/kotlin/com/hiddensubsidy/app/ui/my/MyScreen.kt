@@ -53,6 +53,15 @@ fun MyScreen(
     onPrivacyPolicy: () -> Unit = {},
     onFeedback: () -> Unit = {},
     onFavoritesClick: () -> Unit = {},
+    onAppliedClick: () -> Unit = {},
+    onReceivedClick: () -> Unit = {},
+    onPremiumClick: () -> Unit = {},
+    signedInName: String? = null,
+    signedInEmail: String? = null,
+    onSignInClick: () -> Unit = {},
+    onSignOutClick: () -> Unit = {},
+    dismissedCount: Int = 0,
+    onDismissedClick: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
 
@@ -100,7 +109,7 @@ fun MyScreen(
                         label = "신청한 지원금",
                         count = summary.appliedCount,
                         amount = summary.appliedAmount,
-                        actionLabel = "수령 확인",
+                        onClick = onAppliedClick,
                     )
                 }
                 Spacer(Modifier.height(12.dp))
@@ -110,6 +119,7 @@ fun MyScreen(
                     ReceivedCard(
                         count = summary.receivedCount,
                         amount = summary.receivedAmount,
+                        onClick = onReceivedClick,
                     )
                 }
                 Spacer(Modifier.height(28.dp))
@@ -122,10 +132,22 @@ fun MyScreen(
             }
             item {
                 Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
+                    val authItem = if (signedInName != null) {
+                        SettingItem("🔓", "로그아웃 (${signedInName})", onSignOutClick)
+                    } else {
+                        SettingItem("🔐", "Google 로그인", onSignInClick, badge = "신규")
+                    }
+                    val dismissedItem = SettingItem(
+                        emoji = "🙈",
+                        label = if (dismissedCount > 0) "관심 없음 정책 (${dismissedCount}건)" else "관심 없음 정책",
+                        onClick = onDismissedClick,
+                    )
                     SettingsCard(
                         items = listOf(
+                            authItem,
                             SettingItem("🔔", "알림 설정", onNotificationSettings),
-                            SettingItem("👨‍👩‍👧", "가족 진단", onInviteFriends, badge = "프리미엄"),
+                            dismissedItem,
+                            SettingItem("👨‍👩‍👧", "가족 진단", onPremiumClick, badge = "프리미엄"),
                             SettingItem("💌", "친구 초대", onInviteFriends),
                             SettingItem("📋", "개인정보 처리방침", onPrivacyPolicy),
                             SettingItem("✉️", "의견 보내기", onFeedback),
@@ -202,6 +224,7 @@ private fun ProfileCard(profile: UserProfile, onEdit: () -> Unit) {
         ProgressBar(value = profile.completeness)
         Spacer(Modifier.height(16.dp))
 
+        val isComplete = percent >= 100
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -212,7 +235,7 @@ private fun ProfileCard(profile: UserProfile, onEdit: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "프로필 더 채우기",
+                text = if (isComplete) "프로필 다 채우셨어요" else "프로필 더 채우기",
                 style = MaterialTheme.typography.titleSmall,
                 color = colors.accentText,
                 modifier = Modifier.weight(1f),
@@ -319,13 +342,14 @@ private fun GrantSummaryCard(
 // 받은 지원금 (게이미피케이션 - 강조 카드)
 // =============================================================
 @Composable
-private fun ReceivedCard(count: Int, amount: Long) {
+private fun ReceivedCard(count: Int, amount: Long, onClick: () -> Unit = {}) {
     val colors = AppTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.large)
             .background(colors.accentBg)
+            .clickable(onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

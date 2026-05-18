@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -39,6 +40,7 @@ import com.hiddensubsidy.app.ui.theme.Bubble
 @Composable
 fun EventListScreen(
     events: List<EventBundle> = SampleData.events,
+    activeTriggers: Set<String> = emptySet(),
     onEventClick: (EventBundle) -> Unit = {},
 ) {
     val colors = AppTheme.colors
@@ -60,7 +62,11 @@ fun EventListScreen(
                 HeaderArea()
             }
             items(events, key = { it.eventId }) { bundle ->
-                EventCard(bundle = bundle, onClick = { onEventClick(bundle) })
+                EventCard(
+                    bundle = bundle,
+                    isActive = bundle.eventId in activeTriggers,
+                    onClick = { onEventClick(bundle) },
+                )
             }
         }
     }
@@ -94,28 +100,46 @@ private fun HeaderArea() {
 }
 
 @Composable
-private fun EventCard(bundle: EventBundle, onClick: () -> Unit) {
+private fun EventCard(bundle: EventBundle, isActive: Boolean, onClick: () -> Unit) {
     val colors = AppTheme.colors
     val event = bundle.event ?: return
+    val bg = if (isActive) colors.accentBg else colors.cardBg
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.large)
-            .background(colors.cardBg)
+            .background(bg)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 20.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(eventBubble(event)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = event.emoji,
-                style = TextStyle(fontSize = 30.sp),
-            )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(eventBubble(event)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = event.emoji,
+                    style = TextStyle(fontSize = 30.sp),
+                )
+            }
+            if (isActive) {
+                Spacer(modifier = Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+                        .background(colors.accent)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = "진행 중",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.onAccent,
+                    )
+                }
+            }
         }
         Spacer(Modifier.height(16.dp))
         Text(

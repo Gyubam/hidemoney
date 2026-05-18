@@ -76,4 +76,12 @@ data class HomeData(
     val missedGrants: List<MissedGrant>,
     val thisWeekPolicies: List<Policy>,
     val deadlineSoon: List<Policy>,
+    val categorySummary: Map<String, CategoryStats> = emptyMap(),
+)
+
+/** 카테고리별 자격 충족 정책 통계. 홈 매트릭스 카드용. */
+@Serializable
+data class CategoryStats(
+    val count: Int,
+    val amount: Long,
 )

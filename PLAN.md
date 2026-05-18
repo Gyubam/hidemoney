@@ -247,18 +247,26 @@ jobs:
 
 ### 라운드별 추천 순서 (집에서 시작 후)
 
-| 라운드 | 작업 | 사용자 개입 | 예상 |
-|---|---|---|---|
-| **R1** | GitHub Pages 활성화 + remote fetch 검증 | Settings → Pages 클릭 | 5분 |
-| **R2** | GitHub Actions 크롤러 + Gemini Flash (3단계) | Gemini API key 발급 + GitHub Secret 등록 | 2~3 세션 |
-| **R3** | 자동화 데이터 검증·튜닝 + WorkManager 알림 스케줄링 | 없음 | 1~2 세션 |
-| **R4** | Firebase 연동 (Auth + Firestore + FCM) | Firebase 콘솔 + `google-services.json` | 2~3 세션 |
-| **R5** | 폴리시 (즐겨찾기 목록 화면 / 수령 확인 토글 / 신청→받음 흐름) | 없음 | 1~2 세션 |
-| **R6** | 출시 준비 (Phase 4) | keystore + Play Console 등록(25 USD) + 정책 호스팅 | 1~2 세션 |
-| **R7** | 내부/베타 테스트 + 버그 수정 | Play Console closed beta | 지속 |
-| **R8** | 정식 출시 | Play Console production | 1 세션 |
+| 라운드 | 작업 | 사용자 개입 | 예상 | 상태 |
+|---|---|---|---|---|
+| **R1** | GitHub Pages 활성화 + remote fetch 검증 | Settings → Pages 클릭 | 5분 | ✅ 완료 |
+| **R2** | GitHub Actions 크롤러 + Gemini Flash + data.go.kr API + 9,923개 풀빌드 | Gemini/data.go.kr API key + GitHub Secret | 다 끝 | ✅ 완료 |
+| **R3** | MainActivity 홈 집계 동적 + 매칭 알고리즘 정밀화 | 없음 | 다 끝 | ✅ 완료 |
+| **R4** | 즐겨찾기 목록 화면 + 검색·필터 화면 | 없음 | 다 끝 | ✅ 완료 |
+| **R5** | 매칭 알고리즘 정밀화 (PolicyRelevance broad sentinel fix + sensitive 7토글) | 없음 | 다 끝 | ✅ 완료 |
+| **R6** | WorkManager 알림 (D-3/D-1/D-0) + 알림 deep-link + 로딩 인디케이터 | 없음 | 다 끝 | ✅ 완료 |
+| **R7** | 홈 카드 초기 깜박임 fix (`isLoading` 분기) | 없음 | 5분 | ✅ 완료 (2026-05-18) |
+| **R8a** ⭐ 톱픽 | **빈 액션·하드코딩 fix 묶음** (탭별 미구현 체크리스트 R8 참조) | 없음 | 1 세션 | 🔜 다음 |
+| **R8b** | 마이 카드 동적화 (신청한/받은 상태 추적 + 수령 확인 흐름) | 없음 | 1 세션 | |
+| **R8c** | 캘린더 실데이터 전환 (9,923개 deadline 자동 캘린더화 + 즐겨찾기 강조) | 없음 | 1 세션 | |
+| **R8d** | 이벤트 실데이터 전환 (LifeEvent별 키워드 매칭 + "이사해요" 트리거) | 없음 | 1~2 세션 | |
+| **R9** | Firebase 연동 (Auth Google 로그인 + Firestore + FCM) | Firebase 콘솔 + `google-services.json` | 2~3 세션 | |
+| **R10** | LLM 정련 백필 (amount 42→80%, period 0%→채움, summary 토스 톤) | 워크플로 트리거 1회 | 1 세션 | |
+| **R11** | 출시 자산 (아이콘 512 / 피처그래픽 1024×500 / 스크린샷 4~5장 / `docs/privacy.md`) | 자산 검수 | 1 세션 | |
+| **R12** | 서명 빌드 (keystore + ProGuard + AAB) + Play Console 등록 | keystore 백업 + **25 USD 결제** | 1~2 세션 | |
+| **R13** | 내부/Closed 베타 → 버그 수정 → **Production 출시** | 베타 테스터 모집 + 심사 1~3일 | 지속~1주 | |
 
-**총: 약 10~14 세션 후 정식 출시**. 사용자 개입은 콘솔 설정·결제 위주.
+**남은 작업: 약 9~13 세션 후 정식 출시**. 사용자 개입은 콘솔 설정·결제 위주.
 
 ### 🔥 R4. Firebase 통합 절차
 
@@ -2074,4 +2082,348 @@ cron이 list-only로 매일 돌아도 풀빌드 데이터 안 사라짐. 로그�
 - 데이터 준비 완료 → 폰 빌드/설치 + 홈 화면이 9,923개 실데이터로 작동하는지 검증
 - `MainActivity.kt:149-161` `SampleData.home` 하드코딩 제거 → `allPolicies` + UserProfile 동적 계산
 
+
+### 2026-05-18 (R7 — 홈 카드 초기 깜박임 fix)
+
+**상황**: 앱 첫 진입 시 "이번 주 받을 수 있어요" / "곧 마감돼요" 카드가 잠깐 떠 있다가 로딩 후 사라지는 사고.
+
+**원인**: `MainActivity.kt:157` 초기 `allPolicies = SampleData.allPolicies` (하드코딩 19개 샘플). `HomeAggregator.computeHome`이 샘플 정책으로 매칭 돌려서 thisWeek/deadlineSoon 채움. 그 뒤 cache/remote 로드되면 9,923개 실데이터로 교체되는데 eligible × deadline 있는 정책이 거의 0이라 빈 상태로 갱신. `HomeScreen.kt:80-89` 임팩트 카드만 `isLoading` spinner였고 그 아래 thisWeek/deadlineSoon 카드는 `data` 그대로 그렸음.
+
+**Fix** (`MainActivity.kt:184-193`):
+```kotlin
+val home = remember(profile, allPolicies, isLoading) {
+    if (isLoading) {
+        com.hiddensubsidy.app.data.model.HomeData(0L, 0, emptyList(), emptyList(), emptyList())
+    } else {
+        HomeAggregator.computeHome(allPolicies, profile, today)
+    }
+}
+```
+
+isLoading=true 동안엔 home이 빈 HomeData → HomeScreen이 `firstOrNull?.let` / `isNotEmpty()` 분기로 카드 자체를 안 그림 → 임팩트 spinner만 보임 → 깔끔. 빌드 OK (`assembleDebug` exit 0).
+
+---
+
+### 2026-05-18 (R8 — 탭별 디자인-only / 미구현 체크리스트)
+
+> 각 탭 코드 정찰 결과. 디자인은 다 되어 있지만 실기능 빠진 곳·하드코딩 묶음·잘못 매핑된 액션 정리. R8a~R8d로 분할.
+
+#### 🏠 홈 탭 (`ui/home/HomeScreen.kt`)
+
+✅ 동작:
+- 임팩트 카드 (놓치고 있는 돈) — HomeAggregator 동적 OK
+- 이번 주 카드 / 마감 임박 카드 — 동적 OK (deadline 데이터 5%만 채워져서 실제로 거의 안 보임)
+
+❌ 미구현:
+| # | 위치 | 문제 | 라운드 |
+|---|---|---|---|
+| H1 | `HomeScreen.kt:142` | TopBar 🔔 NotificationsNone 아이콘 onClick 없음 — 장식 | R8a |
+| H2 | `HomeScreen.kt:143` | TopBar 👤 Person 아이콘 onClick 없음 (마이 탭으로 가야) | R8a |
+| H3 | `HomeScreen.kt:100` | "이번 주" 카드 우측 "전체" 버튼 — `onSeeAllThisWeek` 빈 함수 | R8a (Search로 라우팅) |
+| H4 | `HomeScreen.kt:361` | 마감 임박 카드 footer 링크 "마감 임박 전체 보기" — `onSeeAllDeadlines` 빈 함수 | R8a (Search로 라우팅) |
+| H5 | 데이터 | deadline 채움률 5% — 한국 정책 95%가 상시신청 | R10 (LLM 백필) 또는 영구 한계 수용 |
+
+#### 📅 캘린더 탭 (`ui/calendar/CalendarScreen.kt`)
+
+✅ 동작: 7×6 그리드, 월 전환, 오늘로, 날짜 선택, dot, 일정 카드
+
+❌ 미구현/버그:
+| # | 위치 | 문제 | 라운드 |
+|---|---|---|---|
+| C1 🔴 | `CalendarScreen.kt:57` | **`today = LocalDate.of(2026, 5, 15)` 하드코딩** — 항상 5/15가 "오늘"로 표시됨. `LocalDate.now()`로 바꿔야 | R8a |
+| C2 | `MainActivity.kt:187-191` | `calendarEvents`가 SampleData.calendarEvents 14개 고정 (사용자 매칭으로 필터만). 실데이터 9,923개의 deadline 활용 X | R8c |
+| C3 | 데이터 | CalendarEvent 4종(신청시작/마감/발표/지급) — 정부 API엔 deadline만 있음. 신청시작·발표·지급은 영구 미보유 → 마감만 표시하는 게 현실 | R8c (Deadline kind만 유지) |
+| C4 | UI | 즐겨찾기 정책 마감일 강조 X — ⭐ 정책이 캘린더에 다른 색/굵게 떠야 가치 있음 | R8c |
+| C5 | UI | 빈 월 처리 — 일정 1건도 없는 달이면 빈 그리드만. "이번 달 일정 없음" 카드 없음 | R8c |
+
+#### 🎉 이벤트 탭 (`ui/events/EventListScreen.kt`)
+
+✅ 동작: 6개 카드 그리드 (이사/퇴사/임신/결혼/창업/취업) → EventDetailScreen
+
+❌ 미구현:
+| # | 위치 | 문제 | 라운드 |
+|---|---|---|---|
+| E1 | `MainActivity:402` | `events = SampleData.events` 고정 — 6 EventBundle 묶음 정책이 SampleData 19개에서만 뽑힘 | R8d |
+| E2 | `EventListScreen.kt:128` | `bundle.count` = SampleData 정책 수. 실데이터 늘어도 안 변함 | R8d |
+| E3 | EventDetailScreen | 그룹 안 정책 묶음도 SampleData 하드코딩 — 9,923개에서 키워드·카테고리로 자동 분류 X | R8d |
+| E4 | UI | 타임라인 그룹 ("이사 전/이사 후" 등) 데이터 기반 분기 X | R8d |
+| E5 ⭐ | 미구현 | **"내가 곧 이사해요" 트리거** — 사용자가 누르면 시점 저장 + 알림 강화. PLAN 1.③ 차별화 핵심인데 0% | R8d |
+
+#### 👤 마이 탭 (`ui/my/MyScreen.kt`)
+
+✅ 동작: 프로필 카드 + 정확도 %, 받을 예정 (즐겨찾기 동적), 알림 권한 요청, 친구 초대/개인정보처리방침/의견 보내기
+
+❌ 미구현/버그:
+| # | 위치 | 문제 | 라운드 |
+|---|---|---|---|
+| M1 | `MyScreen.kt:97-104` | "신청한 지원금" 카드 — `summary.appliedCount=1 / appliedAmount=600,000` 하드코딩 (SampleData.mySummary) | R8b |
+| M2 | `MyScreen.kt:97-104` | "수령 확인" 액션 라벨 — Box에 `clickable` 없음. 버튼처럼 보이는데 클릭 안 됨 | R8b |
+| M3 | `MyScreen.kt:108-114` | "받은 지원금" 카드 — `receivedCount=5 / receivedAmount=2,300,000` 하드코딩 | R8b |
+| M4 | 흐름 | "신청 → 수령 확인 → 받음" 상태 머신 자체가 없음 — 즐겨찾기 ⭐ 외엔 진척 추적 0 | R8b |
+| M5 🟡 | `MyScreen.kt:128` | **"가족 진단 (프리미엄)" 메뉴 onClick이 `onInviteFriends`로 잘못 매핑** — 친구 초대로 감 | R8a |
+| M6 | 미구현 | 프리미엄 IAP 자체 미구현 — 메뉴만 있고 결제 흐름 0 | (스코프 밖. MVP는 무료) |
+| M7 | `MyScreen.kt:127` | "알림 설정" 클릭 = 권한 요청만. D-day 1/3/7 토글, 알림 시간대 등 세부 옵션 없음 | R8b 또는 별도 |
+| M8 | 미구현 | 로그아웃 / 계정 동기화 / 탈퇴 메뉴 없음 | R9 (Firebase Auth) |
+| M9 | `MyScreen.kt:215` | 프로필 정확도 100%여도 "프로필 더 채우기" 동일 문구. 완료 상태 분기 X | R8a |
+
+---
+
+#### R8 라운드별 묶음
+
+| 라운드 | 묶음 | 항목 | 예상 |
+|---|---|---|---|
+| **R8a** ⭐ 톱픽 | **빠른 fix 묶음** | C1 / H1 / H2 / H3 / H4 / M5 / M9 | 1 세션 |
+| **R8b** | **마이 카드 동적화** | M1 / M2 / M3 / M4 / (M7) | 1 세션 |
+| **R8c** | **캘린더 실데이터** | C2 / C3 / C4 / C5 | 1 세션 |
+| **R8d** | **이벤트 실데이터 + 트리거** | E1 / E2 / E3 / E4 / E5 | 1~2 세션 |
+
+#### R8a 상세 (다음 작업)
+
+1. **C1 캘린더 today 하드코딩 fix**: `CalendarScreen.kt:57` `LocalDate.of(2026, 5, 15)` → `LocalDate.now()`. MainActivity에서 명시 전달도 OK
+2. **H1 홈 🔔 아이콘 onClick**: 알림 권한 요청 또는 마이 탭 알림 설정 라우팅
+3. **H2 홈 👤 아이콘 onClick**: `tab = 3` (마이 탭으로 이동) 또는 ProfileEdit 직진
+4. **H3 / H4 "전체 보기"**: `onSeeAllThisWeek` / `onSeeAllDeadlines` → `screen = Screen.Search` 라우팅. Search 화면이 자격 충족 토글 가지고 있어서 자연 연결
+5. **M5 가족 진단 onClick fix**: `onInviteFriends` → `onPrivacyPolicy` 같은 placeholder 또는 "준비 중" Toast. 진짜 IAP는 출시 후
+6. **M9 프로필 100% 상태 분기**: `if (percent == 100) "프로필 완성!" else "프로필 더 채우기"` (CTA 자체 숨기는 것도 옵션)
+
+**개발 흐름**: 파일 5개 (`CalendarScreen.kt` / `HomeScreen.kt` / `MainActivity.kt` / `MyScreen.kt`) 묶어 수정 → `./gradlew.bat installDebug` → 폰 검증 → PLAN.md "R8a 완료" 기록.
+
+#### R8a 완료 ✅ (2026-05-18)
+
+| # | 파일·라인 | 변경 |
+|---|---|---|
+| C1 🔴 | `CalendarScreen.kt:57` | `today = LocalDate.of(2026, 5, 15)` → `LocalDate.now()` (default 파라미터) |
+| H1 | `HomeScreen.kt:54-63 + TopBar` | `onNotificationClick` prop 추가 + TopBar 🔔 onClick 연결 |
+| H2 | `HomeScreen.kt:54-63 + TopBar` | `onProfileClick` prop 추가 + TopBar 👤 onClick 연결 |
+| H3 / H4 | `HomeScreen.kt` props 기존 활용 | `onSeeAllThisWeek` / `onSeeAllDeadlines`에 SearchScreen 라우팅 binding |
+| M5 🟡 | `MyScreen.kt:128` | "가족 진단" onClick `onInviteFriends` → 신규 `onPremiumClick` prop |
+| M9 | `MyScreen.kt:205-226` | `percent >= 100`이면 "프로필 다 채우셨어요" / 아니면 "프로필 더 채우기" 분기 |
+| MainActivity | `MainActivity.kt:253-272 + TabsHost` | 새 props 4개(`onNotificationIconClick`/`onProfileIconClick`/`onSeeAllClick`/`onPremiumClick`) AppRoot에서 람다로 binding → TabsHost → 각 화면 전달. `onProfileIconClick = { tab = 3 }` (마이 탭 이동), `onPremiumClick`은 Toast "프리미엄 기능은 출시 후 준비 중이에요" |
+
+**빌드 검증**: `./gradlew.bat assembleDebug` BUILD SUCCESSFUL.
+
+**다음 (R8b — 마이 카드 동적화)**:
+- "신청한 지원금" / "받은 지원금" 카드를 SharedPreferences 기반 상태 머신으로 (즐겨찾기 ⭐ 처럼)
+- 즐겨찾기 ⭐ → 신청 → 수령 확인 → 받음 흐름. 정책 상세 화면에 진척 토글 추가
+- `MySummary` 신청한/받은 동적 합산. SampleData.mySummary 의존 제거
+- `AppliedRepository`/`ReceivedRepository` 또는 단일 `PolicyStatusRepository` (status: SAVED / APPLIED / RECEIVED) 톱픽
+
+#### R8b 완료 ✅ (2026-05-18)
+
+| 파일 | 변경 |
+|---|---|
+| `data/ApplicationStatusRepository.kt` 🆕 | SharedPreferences `applied` / `received` Set 관리. `toggleApplied` 시 received 해제, `toggleReceived` 시 applied 해제 (느슨한 상호배타 머신) |
+| `ui/detail/PolicyDetailScreen.kt` | `isApplied/isReceived/onToggleApplied/onToggleReceived` props 추가. EligibilityBadge 아래 **"내 진척" 카드** 신규 — "📝 신청했어요" / "✅ 받았어요" 두 칩 (`ProgressChip` 컴포저블). 활성 시 민트 채움 |
+| `ui/favorites/FavoritesScreen.kt` | `PolicyStatusKind` enum (Saved/Applied/Received) 신규. 라벨·이모지·빈 상태 메시지 일원화 → 받을 예정/신청한/받은 화면 1개 컴포저블로 공유 |
+| `ui/my/MyScreen.kt` | 신청한 카드 onClick → `onAppliedClick`. 받은 카드 onClick → `onReceivedClick` (Row에 `clickable` 추가). actionLabel "수령 확인" 제거 (탭 자체가 액션) |
+| `MainActivity.kt` | `applied/received` state + `MySummary` 동적 합산 (`appliedCount/Amount/receivedCount/Amount`). `Screen.Applied`/`Screen.Received` sealed class 추가. PolicyDetail 진척 토글 시 SharedPreferences + Toast 4종 ("신청한 지원금에 추가했어요" 등) |
+
+**빌드 검증**: `assembleDebug` BUILD SUCCESSFUL (compileDebugKotlin 실행). 폰 설치 OK.
+
+**상태 머신 정의** (느슨):
+- 사용자가 ⭐(즐겨찾기) 없이 바로 "신청했어요" OK
+- 신청 ON → 받음 자동 OFF (받았으면 진행 중 X)
+- 받음 ON → 신청 자동 OFF (받았으니 진행 중 X)
+- 즐겨찾기는 독립 — 신청·받음과 무관하게 토글 가능
+
+**다음 (R8c — 캘린더 실데이터 전환)**:
+- C2: 9,923개 deadline 활용 → CalendarAggregator
+- C3: Deadline kind만 (신청시작/발표/지급은 정부 API에 없음)
+- C4: 즐겨찾기 정책 마감일 강조
+- C5: 빈 월 안내 카드
+
+#### R8c 완료 ✅ (2026-05-18)
+
+| 파일 | 변경 |
+|---|---|
+| `data/CalendarAggregator.kt` 🆕 | `compute(allPolicies, favorites, profile, today): List<PolicyCalendarEvent>`. 자격 충족 + PolicyRelevance 통과 + deadline 있는 정책 ∪ 즐겨찾기 정책의 deadline. today 기준 ±6개월 윈도우, cap 200개. kind는 Deadline 하나만 |
+| `ui/calendar/CalendarScreen.kt` | `favorites: Set<String>` props 추가. DayCell에 `hasFavorite` 플래그 → 즐겨찾기 마감일이면 dot 대신 ⭐ 표시. CalendarEventCard에 isFavorite → 우측에 ⭐. `isMonthEmpty` 분기 → `EmptyMonthCard` 안내 카드 (정부 정책 95% 상시신청 설명) |
+| `MainActivity.kt` | `SampleData.calendarEvents` 필터 → `CalendarAggregator.compute` 호출. TabsHost에 favorites prop 추가 → CalendarScreen 전달 |
+
+**효과**:
+- 캘린더가 9,923개 실데이터의 deadline 활용 (이전엔 SampleData 14개 일정만)
+- 즐겨찾기한 정책 마감일 시각적 강조 (⭐) — 사용자가 직접 마크한 건 더 눈에 띄게
+- 데이터 5% 채움률(deadline) 한계는 빈 월 안내로 자연스럽게 설명
+
+**남은 한계** (영구):
+- 신청시작/발표/지급 일자 — 정부 API에 없는 필드. 영영 미보유. 4 CalendarEventKind 중 Deadline만 실데이터로 동작 (나머지는 모델에 남아있지만 실데이터엔 안 들어옴)
+
+**다음 (R8d — 이벤트 실데이터 전환 + 트리거)**:
+- E1/E2/E3: SampleData.events 6개 EventBundle → 9,923개에서 LifeEvent별 키워드 자동 분류
+- E4: 타임라인 그룹 (이사 전/이사 후 등) 데이터 기반
+- E5 ⭐ **"내가 이사해요" 트리거** — 사용자가 누르면 시점 저장 + 그 시점부터 N일 동안 알림 강화. PLAN 1.③ 차별화 핵심
+
+#### R8d 완료 ✅ (2026-05-18)
+
+| 파일 | 변경 |
+|---|---|
+| `data/EventTriggerRepository.kt` 🆕 | SharedPreferences `event_trigger_<eventId>` = epoch millis. `loadActive()` 만료(180일) 자동 필터. `toggle()` 활성 → 해제 / 비활성 → 현재 시각 마크 |
+| `data/EventAggregator.kt` 🆕 | `compute(allPolicies, profile): List<EventBundle>` 6개 자동 생성. LifeEvent별 키워드 매칭 (이사/퇴사/임신·출산/결혼/창업/취업 각 ~10개 키워드). 자격 충족 + PolicyRelevance 통과 + amount 큰 순. 이벤트당 cap 50개. 단일 group 구조 (timeline 메타 정부 API에 없음) |
+| `ui/events/EventListScreen.kt` | `activeTriggers: Set<String>` props. 트리거 활성 카드는 `accentBg` + "진행 중" pill 표시. `bundle.count` 그대로 동적 (EventAggregator 출력) |
+| `ui/events/EventDetailScreen.kt` | `isActive` / `onToggleTrigger` props 추가. HeroCard 아래 **TriggerToggleCard** 신규 — 비활성 "내가 ${label}해요" / 활성 "${label} 중이에요 — 6개월간 강조". 우측 마크/해제 칩. 정책 0건이면 `EmptyEventCard` ("프로필 더 채우면 매칭률 ↑") |
+| `MainActivity.kt` | `eventBundles` / `activeTriggers` state. `SampleData.events` 의존 제거. EventDetail 트리거 토글 시 SharedPreferences + Toast ("이사 시점을 마크했어요" 등). EventDetail은 `eventBundles.firstOrNull { it.eventId == s.id }` 로 lookup (SampleData.findEvent 제거) |
+
+**키워드 분류** (영구 한계 X, 점진 확장 가능):
+- 이사: "이사/전입/전세자금/월세 지원/임차/임대주택/주거안정/보증금" 등 12개
+- 퇴사: "실업/실업급여/구직/고용보험/재취업/이직/퇴직" 9개
+- 임신·출산: "임신/출산/산모/산후/신생아/영아/영유아/임산부/첫만남/부모급여" 13개
+- 결혼: "신혼/결혼/혼인/신혼부부/신혼희망" 6개
+- 창업: "창업/스타트업/사업화/벤처/K-스타트업/예비창업" 9개
+- 취업: "취업/신입/청년채용/내일채움/도약계좌/청년수당" 9개
+
+**상태 머신**:
+- 트리거 활성 → 180일 후 자동 만료 (재마크 가능)
+- MVP는 시점 저장 + 시각 표시까지. 알림 강화·홈 가중 노출은 추후 (PolicyDeadlineWorker + HomeAggregator 연동)
+
+**남은 (이번 라운드 밖)**:
+- 트리거 활성 정책을 홈 missed/thisWeek에 가중 노출 (현재는 EventDetail에만 효과)
+- WorkManager에서 트리거 활성 이벤트 정책의 D-day 알림 우선순위 상향
+- 신청시작/발표/지급 일자 타임라인 분리 (정부 API에 필드 없음 — 영구 한계)
+
+### 2026-05-18 (R9 — Firebase Auth: Google 로그인 옵션)
+
+**사용자 준비**:
+- Firebase 콘솔 프로젝트 생성 (Analytics OFF, Spark 무료)
+- Android 앱 추가 (debug 패키지 `com.hiddensubsidy.app.debug`)
+- SHA-1 등록 (debug keystore)
+- `google-services.json` 다운 → `app/` 폴더 (.gitignore 등재 확인)
+- Authentication → Sign-in method → Google 활성화
+
+**코드 작업**:
+
+| 파일 | 변경 |
+|---|---|
+| `gradle/libs.versions.toml` | `firebaseBom=33.7.0` / `playServicesAuth=21.2.0` / `googleServicesPlugin=4.4.2` / `kotlinxCoroutinesPlayServices=1.9.0` versions + libraries + plugin alias |
+| `build.gradle.kts` (root) | `alias(libs.plugins.google.services) apply false` |
+| `app/build.gradle.kts` | `alias(libs.plugins.google.services)` plugin + `platform(libs.firebase.bom)` / `firebase-auth-ktx` / `play-services-auth` / `kotlinx-coroutines-play-services` dependency |
+| `data/AuthRepository.kt` 🆕 | `getSignInIntent` (Google 계정 선택 UI) / `signInWithIdToken` (Firebase Auth) / `signOut` (양쪽 sign-out). `currentUser` / `authState: Flow<FirebaseUser?>` (AuthStateListener → callbackFlow) |
+| `ui/auth/LoginScreen.kt` 🆕 | 🔐 이모지 + 안내 + Google 로그인 큰 검정 버튼. `rememberLauncherForActivityResult` → `signInWithIdToken` → onSuccess. 게스트 모드 유지 안내 ("로그인 없이 계속 사용해도 돼요") |
+| `ui/my/MyScreen.kt` | `signedInName` / `signedInEmail` / `onSignInClick` / `onSignOutClick` props. 미로그인 시 "🔐 Google 로그인" (신규 배지) / 로그인 시 "🔓 로그아웃 (이름)" 메뉴로 동적 분기 |
+| `MainActivity.kt` | `Screen.Login` sealed class 추가. `AuthRepository.authState.collectAsState()` 로 실시간 user 관찰. TabsHost props 4종 추가 → MyScreen 연결. 로그아웃 시 `scope.launch { AuthRepository.signOut(context) }` + Toast |
+
+**설계 결정**:
+- **게스트 모드 유지** (강제 로그인 X) — 1인 개발자 가치관 "3탭 안에 답" + 진입 장벽 최소화. 로그인 원하는 사용자만 마이 → Google 로그인 진입
+- Firestore 동기화 (즐겨찾기/신청/받음/프로필/트리거 cross-device 저장)는 별도 라운드(**R9.5**)
+- FCM 푸시도 별도 (R9.5 또는 R10에 묶음)
+
+**Deprecated 경고**:
+- `GoogleSignIn` / `GoogleSignInClient` deprecated → Google이 **Credential Manager API** 권장
+- 동작은 안정 (Play Services 21.2.0 기준 2025+ 보장). 빠른 MVP 안정성 위해 일단 유지
+- 출시 후 별도 라운드(**R9.x**)에서 Credential Manager + GoogleId Credential Provider로 마이그레이션 — 추후
+
+**빌드 검증**: `assembleDebug` BUILD SUCCESSFUL (warning만, error X). 폰 설치 + 로그인 동작 검증 OK ✅.
+
+**검증 결과**:
+1. 마이 탭 첫 메뉴 "🔐 Google 로그인" 표시 ✅
+2. LoginScreen 진입 + Google 계정 선택 시트 ✅
+3. Firebase Auth 연동 + "환영해요, {이름}님 🎉" Toast ✅
+4. 마이 탭 "🔓 로그아웃 ({이름})"로 동적 갱신 ✅
+5. 로그아웃 시 양쪽 sign-out 정상 ✅
+
+**디버깅 사고 기록**:
+- 첫 빌드에서 `DEVELOPER_ERROR (10)` 발생
+- 원인: 첫 google-services.json의 `oauth_client: []` 비어있음. 두 가지 콘솔 작업이 안 끝났던 상태:
+  - (A) Authentication → Sign-in method → **Google 활성화** 안 됨
+  - (B) **SHA-1 디지털 지문 미등록**
+- Fix: 콘솔에서 A·B 둘 다 처리 → `google-services.json` 새로 다운로드 → app/ 폴더 덮어쓰기 → 재빌드
+- 새 파일 검증: `client_type: 1` (Android, certificate_hash 매칭) + `client_type: 3` (Web, default_web_client_id) 채워짐 → 로그인 성공
+- 향후 사고 대응 절차로 PLAN에 박힘 (이 항목)
+
+**다음 라운드 후보**:
+- **R9.5** Firestore 동기화 — favorites/applied/received/profile/triggers cross-device
+- **R10** LLM 정련 백필 (amount 42→80%, period 0→채움, summary 토스 톤)
+- **R11** 출시 자산 + 개인정보처리방침
+
+### 2026-05-18 (R9.5 — Firestore 동기화 cross-device)
+
+**사용자 준비**:
+- Firebase 콘솔 → Build → Firestore Database → 데이터베이스 만들기
+- 위치: **asia-northeast3 (Seoul)** ★ 한국 사용자 latency 최소화
+- 모드: **프로덕션 모드** (rules로 보안)
+- 규칙 탭에 보안 룰 게시:
+  ```
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      match /users/{uid} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+  ```
+
+**코드 작업**:
+
+| 파일 | 변경 |
+|---|---|
+| `gradle/libs.versions.toml` | `firebase-firestore-ktx` library 추가 (BOM 33.7.0 통해 버전 자동) |
+| `app/build.gradle.kts` | `implementation(libs.firebase.firestore.ktx)` 추가 |
+| `data/CloudSyncRepository.kt` 🆕 | `pullFromCloud(context, uid)` — Firestore `users/{uid}` 문서 → 로컬 SharedPreferences 덮어쓰기. 문서 없으면 (신규 사용자) `pushToCloud`로 백업. `pushToCloud(context, uid)` — 로컬 상태 → 클라우드 (last-write-wins). 자동 직렬화용 `CloudUserData` / `CloudUserProfile` data class |
+| `MainActivity.kt` | 두 개 LaunchedEffect 추가: (1) `authUser.uid` 변경 시 → `pullFromCloud` → 모든 state 갱신 (favorites/applied/received/activeTriggers/profile). (2) 로컬 state 변경 시 → 800ms debounce 후 `pushToCloud`. 로그아웃 시 자동 동기화 정지 |
+
+**데이터 모델** (`users/{uid}` 문서):
+```kotlin
+CloudUserData(
+  favorites: List<String>,
+  applied: List<String>,
+  received: List<String>,
+  triggers: Map<String, Long>,
+  profile: CloudUserProfile?,
+  updatedAt: Long,
+)
+```
+~1KB / 사용자. Spark 무료 티어(1GB 저장) → **100만명까지 0원**.
+
+**동기화 정책**:
+- 로그인 = pull (클라우드 → 로컬 덮어쓰기, 신규면 로컬 push로 백업)
+- 변경 = push (debounce 800ms, 연속 토글 합침)
+- 로그아웃 = 동기화 정지 (로컬은 그대로 유지 → 게스트 모드)
+- 충돌 = **last-write-wins** (단순. multi-device 동시 사용은 MVP 밖)
+
+**빌드 검증**: `assembleDebug` BUILD SUCCESSFUL (deprecated toObject warning만). 폰 설치 + cross-device 복원 검증 OK ✅ (2026-05-18).
+
+**검증 결과**:
+1. 첫 로그인 → `push local backup` 동작 (신규 사용자, 클라우드 비어있음 → 로컬 push) ✅
+2. 즐겨찾기/신청/받음/트리거 토글 시 `push OK` 로그 ✅
+3. 앱 데이터 클리어 후 재로그인 → `pull OK: fav=N, ...` 로그 + 화면에 데이터 복원 ✅
+4. 폰 바꿔도 같은 Google 계정이면 모든 상태 복원 가능 (cross-device)
+
+**다음 라운드 후보**:
+- **R10** LLM 정련 백필 (amount 42→80%, period 0→채움, summary 토스 톤). 1세션, 사용자 트리거 1회
+- **R11** 출시 자산 + 개인정보처리방침 (아이콘/스크린샷/privacy.md)
+- **R12** Keystore + AAB + Play Console (25 USD 결제)
+
+### 2026-05-18 (홈 풍성화 + dismissed + 광고 + 신규 정책 알림 미니 라운드들)
+
+R11 대기 중 사용자 피드백 반영해 추가 작업들:
+
+| 작업 | 파일 |
+|---|---|
+| **홈 풍성화** — 카테고리 6 매트릭스 / 트리거 미니카드 / 내 진척 / 프로필 완성도 칩 | `data/model/Policy.kt`(CategoryStats), `data/HomeAggregator.kt`, `ui/home/HomeScreen.kt`, `MainActivity.kt` |
+| **신규 정책 자동 알림** — WorkManager에 자격 충족 신규 정책 diff 검사 (baseline 보호) | `notification/PolicyDeadlineWorker.kt`, `notification/NotificationHelper.kt` (`notifyNewEligible`) |
+| **워커 remote-first fetch** — 캐시 stale 방지 | `notification/PolicyDeadlineWorker.kt:loadPolicies` |
+| **매일 cron detail까지 풀빌드** — `list_only` default `true→false` | `.github/workflows/crawl-policies.yml` |
+| **AdMob 전면 광고** — 정책 상세 진입 시 5번에 1번, 30초 보호 + 5분 쿨다운 | `ads/AdManager.kt`, `app/build.gradle.kts`, `AndroidManifest.xml` |
+| **"관심 없음" 토글** — 홈 임팩트 카드 + missed에서 제외 | `data/DismissedRepository.kt`, `ui/detail/PolicyDetailScreen.kt`(DismissRow), `data/HomeAggregator.kt`, `ui/favorites/FavoritesScreen.kt`(PolicyStatusKind.Dismissed), `ui/my/MyScreen.kt`, `data/CloudSyncRepository.kt`(dismissed 동기화) |
+| **MissedSheet 정책 클릭 액션** — `onGrantClick` MainActivity binding | `MainActivity.kt` |
+| **"이번 주" D-0 사고 fix** — fallback 제거 (deadline 빈 정책 D-0 표시 버그) | `data/HomeAggregator.kt` |
+| **자격 조건 중복 표시 fix** — clean + normalize.py preserve_polished | `ui/detail/PolicyDetailScreen.kt`, `tools/normalize.py`, `tools/build_policies.py` |
+
+**AdMob 정보**:
+- App ID: `ca-app-pub-2968584390793166~2516614596`
+- Interstitial 단위 ID: `ca-app-pub-2968584390793166/8781576983`
+- 디버그 빌드는 Google 테스트 ID 사용 (BuildConfig.DEBUG 분기) — 자기 폰 클릭 안전
+
+### 2026-05-18 (R10 결정 — 스킵, R11로 점프)
+
+**상황**: 사용자 환기 — R2.8.X에서 "Gemini는 가끔 수동 트리거"로 결정했고 R10이 정확히 그 작업이지만, 현재 데이터 충분히 쓸 만함:
+- eligibility 98% / eligibilityRule 99.7% / documents 93.9% / procedure 98.3% / amount 42%
+- summary 정부 raw 톤이지만 정보 다 들어있음
+
+**결정**: **R10 스킵 → R11(출시 자산)로 점프**. 출시 후 사용자 피드백 보고 필요하면 R10 돌림.
+
+**코드 변경은 보존**:
+- `tools/normalize.py` LLM_SUMMARY_PROMPT 강화 (period 적극 추론 + 좋은 예 3개)
+- `tools/build_policies.py` merge 로직 `_is_polished_summary` + `preserved_polished` 카운터
+- 둘 다 미래 R10 트리거 시 사용. 코드 자체는 출시에 영향 0. push 안 해도 OK (다음 cron 트리거 시 자동 반영)
 

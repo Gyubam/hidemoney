@@ -63,10 +63,11 @@ fun SearchScreen(
     profile: UserProfile,
     onBack: () -> Unit,
     onPolicyClick: (Policy) -> Unit,
+    initialCategory: String? = null,
 ) {
     val colors = AppTheme.colors
     var query by rememberSaveableString()
-    var selectedCategory by rememberSaveableNullableString()
+    var selectedCategory by rememberSaveableNullableString(initial = initialCategory)
     var eligibleOnly by remember { mutableStateOf(true) }
 
     // 카테고리 + 검색 키워드 먼저 적용 (eligibleOnly 무관 base)
@@ -136,8 +137,8 @@ private fun rememberSaveableString(): androidx.compose.runtime.MutableState<Stri
     androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
 
 @Composable
-private fun rememberSaveableNullableString(): androidx.compose.runtime.MutableState<String?> =
-    androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+private fun rememberSaveableNullableString(initial: String? = null): androidx.compose.runtime.MutableState<String?> =
+    androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(initial) }
 
 // =============================================================
 // 상단 검색바 — 좌측 ← + 검색 입력

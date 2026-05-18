@@ -322,14 +322,22 @@ LLM_SUMMARY_PROMPT = """너는 정부 공공서비스를 모바일 앱 '숨은�
 
 [출력 — JSON 객체 하나, 마크다운 펜스 금지]
 {{
-  "summary": "1~2문장 60자 이내. '~해드려요/지원해요/받을 수 있어요' 같은 친근한 존댓말로 **재작성**. raw 복붙 금지. 누가·얼마·언제 한눈에.",
-  "period": "지원 기간/주기 한 줄. 예: '월 20만원 · 12개월', '연 1회', '상시'. 없으면 빈 문자열.",
-  "amount": 정수. 원 단위. '월 N만원'은 12개월 가정해 N*120000. '최대 N억'은 N*100000000. 비금전이면 0.
+  "summary": "1~2문장 60자 이내. '~해드려요/지원해요/받을 수 있어요' 같은 친근한 존댓말로 **재작성 의무**. 원문 복붙 절대 금지. 누가·얼마·언제 한눈에. 친근 어미('어요/해요/드려요') 사용.",
+  "period": "지원 기간/주기 한 줄. **거의 모든 정책이 기간 정보 있음 — 최대한 채워라.** 예: '월 20만원 · 12개월', '연 1회 100만원', '5년간 5천만원', '신청 즉시 1회', '월 N회'. 정말 없으면 '상시'. 빈 문자열은 마지막 수단.",
+  "amount": 정수. 원 단위. '월 N만원'은 12개월 가정해 N*120000. '최대 N억'은 N*100000000. '연 N만원'은 N*10000. '월 N회'·'1회'는 본문 금액 + 횟수 계산. 비금전이면 0.
 }}
 
-[좋은 예]
+[좋은 예 1 — 명확한 월 단위]
 입력: title='청년 월세 지원' / content='만 19~34세 청년 무주택자에게 월 20만원을 12개월간 지원'
 출력: {{"summary":"만 19~34세 청년 무주택자에게 월 20만원을 12개월간 지원해드려요.","period":"월 20만원 · 12개월","amount":2400000}}
+
+[좋은 예 2 — 1회성]
+입력: title='출산장려금' / content='첫째 자녀 출산 시 200만원 1회 지급'
+출력: {{"summary":"첫째 자녀 출산하면 200만원을 한 번에 받을 수 있어요.","period":"1회 200만원","amount":2000000}}
+
+[좋은 예 3 — 5년 적립]
+입력: title='청년 도약 계좌' / content='5년간 매월 70만원 납입 시 정부가 매칭 지원하여 5천만원 마련'
+출력: {{"summary":"5년간 매월 납입하면 5천만원을 모을 수 있어요.","period":"5년 최대 5천만원","amount":50000000}}
 """
 
 
@@ -467,10 +475,13 @@ def normalize(
     procedure_raw = detail.get("신청방법") or list_row.get("신청방법") or ""
     documents_raw = detail.get("구비서류") or ""
 
-    # eligibility: 지원대상 + 선정기준 합쳐서 항목화
+    # eligibility: 지원대상 + 선정기준 합쳐서 항목화.
+    # target_raw / criteria_raw 둘 다 같은 문장 ("국민의 70%" 등)을 담는 케이스가 있어
+    # 각각 split하면 결과에 중복 → dict.fromkeys로 순서 유지 dedupe.
     eligibility_items = split_to_items(target_raw, max_items=4)
     if len(eligibility_items) < 4:
         eligibility_items += split_to_items(criteria_raw, max_items=4 - len(eligibility_items))
+    eligibility_items = list(dict.fromkeys(eligibility_items))
 
     # documents: 구비서류 항목화 (detail 있을 때만 채워짐)
     document_items = [

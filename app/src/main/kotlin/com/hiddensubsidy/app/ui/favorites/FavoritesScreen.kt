@@ -39,24 +39,64 @@ import com.hiddensubsidy.app.ui.theme.AppTheme
 import com.hiddensubsidy.app.ui.theme.categoryBubble
 import com.hiddensubsidy.app.ui.theme.categoryEmoji
 
+/** 정책 진척 단계 — 받을 예정 / 신청한 / 받은 */
+enum class PolicyStatusKind(
+    val title: String,
+    val impactLabel: String,
+    val emptyEmoji: String,
+    val emptyTitle: String,
+    val emptyBody: String,
+) {
+    Saved(
+        title = "받을 예정",
+        impactLabel = "받을 예정 금액",
+        emptyEmoji = "⭐",
+        emptyTitle = "받을 예정 정책이 없어요",
+        emptyBody = "홈에서 마음에 드는 정책을 ⭐로 추가해보세요",
+    ),
+    Applied(
+        title = "신청한 지원금",
+        impactLabel = "신청한 금액",
+        emptyEmoji = "📝",
+        emptyTitle = "신청한 정책이 없어요",
+        emptyBody = "정책 상세에서 '신청했어요'를 눌러보세요",
+    ),
+    Received(
+        title = "받은 지원금",
+        impactLabel = "받은 금액",
+        emptyEmoji = "✅",
+        emptyTitle = "받은 정책이 없어요",
+        emptyBody = "정책 상세에서 '받았어요'를 눌러보세요",
+    ),
+    Dismissed(
+        title = "관심 없음 정책",
+        impactLabel = "숨긴 금액 합계",
+        emptyEmoji = "🙈",
+        emptyTitle = "숨긴 정책이 없어요",
+        emptyBody = "정책 상세에서 '이 정책은 관심 없어요'를 누르면 여기로 들어와요",
+    ),
+}
+
 @Composable
 fun FavoritesScreen(
     favorites: List<Policy>,
     onBack: () -> Unit,
     onPolicyClick: (Policy) -> Unit,
+    kind: PolicyStatusKind = PolicyStatusKind.Saved,
 ) {
     val colors = AppTheme.colors
 
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            TopBar(onBack = onBack)
+            TopBar(title = kind.title, onBack = onBack)
 
             if (favorites.isEmpty()) {
-                EmptyState()
+                EmptyState(kind = kind)
             } else {
                 FavoritesList(
                     favorites = favorites,
                     onPolicyClick = onPolicyClick,
+                    kind = kind,
                 )
             }
         }
@@ -64,10 +104,10 @@ fun FavoritesScreen(
 }
 
 // =============================================================
-// 상단 바 — 좌측 ← + 제목 "받을 예정"
+// 상단 바 — 좌측 ← + 동적 제목
 // =============================================================
 @Composable
-private fun TopBar(onBack: () -> Unit) {
+private fun TopBar(title: String, onBack: () -> Unit) {
     val colors = AppTheme.colors
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Row(
@@ -93,7 +133,7 @@ private fun TopBar(onBack: () -> Unit) {
         }
         Spacer(Modifier.width(4.dp))
         Text(
-            text = "받을 예정",
+            text = title,
             style = MaterialTheme.typography.titleLarge,
             color = colors.textPrimary,
         )
@@ -104,7 +144,7 @@ private fun TopBar(onBack: () -> Unit) {
 // 빈 상태
 // =============================================================
 @Composable
-private fun EmptyState() {
+private fun EmptyState(kind: PolicyStatusKind) {
     val colors = AppTheme.colors
     Column(
         modifier = Modifier
@@ -113,16 +153,16 @@ private fun EmptyState() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
     ) {
-        IconBubble(emoji = "⭐", background = colors.cardBg, size = 80.dp, fontSize = 40)
+        IconBubble(emoji = kind.emptyEmoji, background = colors.cardBg, size = 80.dp, fontSize = 40)
         Spacer(Modifier.height(20.dp))
         Text(
-            text = "받을 예정 정책이 없어요",
+            text = kind.emptyTitle,
             style = MaterialTheme.typography.titleLarge,
             color = colors.textPrimary,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "홈에서 마음에 드는 정책을 ⭐로 추가해보세요",
+            text = kind.emptyBody,
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textTertiary,
         )
@@ -136,6 +176,7 @@ private fun EmptyState() {
 private fun FavoritesList(
     favorites: List<Policy>,
     onPolicyClick: (Policy) -> Unit,
+    kind: PolicyStatusKind,
 ) {
     val colors = AppTheme.colors
     val totalAmount = favorites.sumOf { it.amount }
@@ -145,11 +186,11 @@ private fun FavoritesList(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        // 임팩트 카드 — 받을 예정 총액
+        // 임팩트 카드 — 단계별 총액 라벨
         item {
             Spacer(Modifier.height(4.dp))
             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                ImpactCard(amount = totalAmount, count = count)
+                ImpactCard(amount = totalAmount, count = count, label = kind.impactLabel)
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -176,7 +217,7 @@ private fun FavoritesList(
 }
 
 @Composable
-private fun ImpactCard(amount: Long, count: Int) {
+private fun ImpactCard(amount: Long, count: Int, label: String) {
     val colors = AppTheme.colors
     Column(
         modifier = Modifier
@@ -186,7 +227,7 @@ private fun ImpactCard(amount: Long, count: Int) {
             .padding(horizontal = 24.dp, vertical = 24.dp),
     ) {
         Text(
-            text = "받을 예정 금액",
+            text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textTertiary,
         )

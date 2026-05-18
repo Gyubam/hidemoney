@@ -1,5 +1,6 @@
 package com.hiddensubsidy.app.data
 
+import com.hiddensubsidy.app.data.model.CategoryStats
 import com.hiddensubsidy.app.data.model.HomeData
 import com.hiddensubsidy.app.data.model.MissedGrant
 import com.hiddensubsidy.app.data.model.Policy
@@ -39,19 +40,23 @@ object HomeAggregator {
         allPolicies: List<Policy>,
         profile: UserProfile,
         today: LocalDate = LocalDate.now(),
+        dismissed: Set<String> = emptySet(),
     ): HomeData {
         if (allPolicies.isEmpty()) return SampleData.home
 
-        // 자격 매칭 결과 + daysLeft 재계산 + 키워드 정밀화 모두 통과한 것만 "사용자에게 의미 있는"
+        // 자격 매칭 결과 + daysLeft 재계산 + 키워드 정밀화 + 관심 없음 제외 = "사용자에게 의미 있는"
         val matched = allPolicies.matchedWith(profile).withFreshDaysLeft(today)
-        val eligible = matched.filter { PolicyRelevance.isEligibleForUser(it, profile) }
+        val eligible = matched
+            .filter { it.id !in dismissed }
+            .filter { PolicyRelevance.isEligibleForUser(it, profile) }
         val withDeadline = eligible.filter { it.deadline.isNotBlank() }
 
-        // 이번 주 (7일 이내)
+        // 이번 주 (7일 이내). deadline 있는 정책만 — fallback 제거.
+        // 이전 fallback(eligible.maxByOrNull)은 deadline 빈 정책을 D-0으로 표시하는 사고 원인.
+        // 이번 주 정책 없으면 카드 자체를 안 그림 (HomeScreen이 firstOrNull?.let로 분기).
         val thisWeek = withDeadline
             .filter { it.daysLeft in 0..7 }
             .maxByOrNull { it.amount }
-            ?: eligible.maxByOrNull { it.amount }
 
         // 마감 임박 (30일 이내, 이번 주 중복 제외)
         val deadlineSoon = withDeadline
@@ -88,12 +93,24 @@ object HomeAggregator {
                 )
             }
 
+        // 카테고리별 자격 충족 통계 — 홈 6 매트릭스 카드용
+        val categorySummary = eligible
+            .groupBy { it.category }
+            .filter { it.key.isNotBlank() }
+            .mapValues { (_, list) ->
+                CategoryStats(
+                    count = list.size,
+                    amount = list.sumOf { it.amount.coerceAtLeast(0L) },
+                )
+            }
+
         return HomeData(
             missedTotalAmount = missedTotalAmount,
             missedCount = missedCount,
             missedGrants = missedGrants,
             thisWeekPolicies = listOfNotNull(thisWeek),
             deadlineSoon = deadlineSoon,
+            categorySummary = categorySummary,
         )
     }
 }

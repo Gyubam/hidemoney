@@ -154,6 +154,22 @@ def _load_existing_policies() -> List[Dict[str, Any]]:
         return []
 
 
+# 정련된(LLM 통과한) summary는 친근 어미로 끝남 — 토스 톤 특징.
+# list-only cron의 raw text는 정부 문서체("○ ~", "사업", "지원") → 어미가 다름.
+_POLISHED_SUFFIXES = ("어요", "해요", "드려요", "있어요", "돼요", "받을 수 있어요")
+
+
+def _is_polished_summary(summary: Optional[str]) -> bool:
+    if not summary:
+        return False
+    text = summary.rstrip(" .。!?\n\r\t").strip()
+    if not text:
+        return False
+    # 마지막 6자 안에 친근 어미가 있으면 정련된 것
+    tail = text[-6:]
+    return any(suffix in tail for suffix in _POLISHED_SUFFIXES)
+
+
 def run(
     *,
     enrich: bool,
@@ -214,6 +230,7 @@ def run(
         updated = 0
         preserved_docs = 0
         preserved_rule = 0
+        preserved_polished = 0
         for new in new_policies:
             pid = new.get("id")
             if not pid:
@@ -228,13 +245,29 @@ def run(
                 if not new.get("eligibilityRule") and existing_policy.get("eligibilityRule"):
                     new["eligibilityRule"] = existing_policy["eligibilityRule"]
                     preserved_rule += 1
+                # LLM 정련된 summary/period가 list-only cron의 정부 raw 톤에 덮이지 않도록 보존.
+                # 휴리스틱: 기존 summary 어미가 토스 톤(어요/해요/드려요)이면 정련된 것 → 보존.
+                if _is_polished_summary(existing_policy.get("summary")):
+                    new["summary"] = existing_policy["summary"]
+                    if existing_policy.get("period"):
+                        new["period"] = existing_policy["period"]
+                    # 정련된 amount/eligibility/procedure도 raw 결정론보다 신뢰
+                    if existing_policy.get("amount", 0) > 0 and new.get("amount", 0) == 0:
+                        new["amount"] = existing_policy["amount"]
+                    if existing_policy.get("eligibility") and not new.get("eligibility"):
+                        new["eligibility"] = existing_policy["eligibility"]
+                    if existing_policy.get("procedure") and not new.get("procedure"):
+                        new["procedure"] = existing_policy["procedure"]
+                    preserved_polished += 1
                 updated += 1
             else:
                 added += 1
             by_id[pid] = new
         log.info(
-            "merge: existing=%d, added=%d, updated=%d, total=%d, preserved_documents=%d, preserved_rule=%d",
-            len(existing), added, updated, len(by_id), preserved_docs, preserved_rule,
+            "merge: existing=%d, added=%d, updated=%d, total=%d, "
+            "preserved_documents=%d, preserved_rule=%d, preserved_polished=%d",
+            len(existing), added, updated, len(by_id),
+            preserved_docs, preserved_rule, preserved_polished,
         )
         base = list(by_id.values())
     else:

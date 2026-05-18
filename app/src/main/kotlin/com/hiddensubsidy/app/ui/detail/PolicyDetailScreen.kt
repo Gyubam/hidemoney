@@ -56,11 +56,29 @@ private const val SIDE = 16
 fun PolicyDetailScreen(
     policy: Policy,
     isFavorite: Boolean,
+    isApplied: Boolean,
+    isReceived: Boolean,
+    isDismissed: Boolean,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onToggleApplied: () -> Unit,
+    onToggleReceived: () -> Unit,
+    onToggleDismissed: () -> Unit,
 ) {
     val colors = AppTheme.colors
     val context = LocalContext.current
+
+    // 정부 raw 데이터에 같은 문장이 "○ A / ○ A" 식으로 중복 들어오는 케이스 방어.
+    // 데이터 빌드(normalize.py)에서도 정리됨 — 일단 클라에서도 distinct.
+    val cleanEligibility = androidx.compose.runtime.remember(policy.eligibility) {
+        policy.eligibility.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    }
+    val cleanDocuments = androidx.compose.runtime.remember(policy.documents) {
+        policy.documents.distinctBy { it.name.trim() }
+    }
+    val cleanProcedure = androidx.compose.runtime.remember(policy.procedure) {
+        policy.procedure.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    }
 
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -93,6 +111,30 @@ fun PolicyDetailScreen(
                     }
                 }
 
+                // 진척 카드 — 신청·받음 토글 (느슨한 상태 머신)
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
+                        ProgressCard(
+                            isApplied = isApplied,
+                            isReceived = isReceived,
+                            onToggleApplied = onToggleApplied,
+                            onToggleReceived = onToggleReceived,
+                        )
+                    }
+                }
+
+                // "관심 없음" 액션 — 작은 텍스트 링크 (조용히)
+                item {
+                    Spacer(Modifier.height(8.dp))
+                    Box(modifier = Modifier.padding(horizontal = SIDE.dp + 4.dp)) {
+                        DismissRow(
+                            isDismissed = isDismissed,
+                            onClick = onToggleDismissed,
+                        )
+                    }
+                }
+
                 // 마감일 카드
                 item {
                     Spacer(Modifier.height(12.dp))
@@ -113,21 +155,21 @@ fun PolicyDetailScreen(
                 }
 
                 // 자격 조건
-                if (policy.eligibility.isNotEmpty()) {
+                if (cleanEligibility.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(12.dp))
                         Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
-                            EligibilityListCard(items = policy.eligibility, isEligible = policy.isEligible)
+                            EligibilityListCard(items = cleanEligibility, isEligible = policy.isEligible)
                         }
                     }
                 }
 
                 // 필요 서류
-                if (policy.documents.isNotEmpty()) {
+                if (cleanDocuments.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(12.dp))
                         Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
-                            DocumentsCard(documents = policy.documents, onOpen = { url ->
+                            DocumentsCard(documents = cleanDocuments, onOpen = { url ->
                                 openUrl(context, url)
                             })
                         }
@@ -135,11 +177,11 @@ fun PolicyDetailScreen(
                 }
 
                 // 신청 절차
-                if (policy.procedure.isNotEmpty()) {
+                if (cleanProcedure.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(12.dp))
                         Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
-                            ProcedureCard(steps = policy.procedure)
+                            ProcedureCard(steps = cleanProcedure)
                         }
                     }
                 }
@@ -305,6 +347,103 @@ private fun EligibilityBadge(eligible: Boolean) {
                 color = primaryText,
             )
         }
+    }
+}
+
+// =============================================================
+// 진척 카드 — 신청·받음 토글 (느슨한 상태 머신)
+// =============================================================
+@Composable
+private fun ProgressCard(
+    isApplied: Boolean,
+    isReceived: Boolean,
+    onToggleApplied: () -> Unit,
+    onToggleReceived: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(colors.cardBg)
+            .padding(20.dp),
+    ) {
+        Text(
+            text = "내 진척",
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textTertiary,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ProgressChip(
+                emoji = "📝",
+                label = "신청했어요",
+                active = isApplied,
+                onClick = onToggleApplied,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(10.dp))
+            ProgressChip(
+                emoji = "✅",
+                label = "받았어요",
+                active = isReceived,
+                onClick = onToggleReceived,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProgressChip(
+    emoji: String,
+    label: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AppTheme.colors
+    val bg = if (active) colors.accent else colors.background
+    val textColor = if (active) colors.onAccent else colors.textPrimary
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = emoji, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleSmall,
+            color = textColor,
+        )
+    }
+}
+
+// =============================================================
+// "관심 없음" 액션 행 — 작은 텍스트 링크, 조용히
+// =============================================================
+@Composable
+private fun DismissRow(
+    isDismissed: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (isDismissed) "✓ 관심 없음 — 다시 표시하기" else "이 정책은 관심 없어요 — 숨기기",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textTertiary,
+        )
     }
 }
 

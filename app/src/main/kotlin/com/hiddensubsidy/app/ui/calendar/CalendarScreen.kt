@@ -37,9 +37,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.hiddensubsidy.app.data.SampleData
 import com.hiddensubsidy.app.data.model.CalendarEventKind
 import com.hiddensubsidy.app.data.model.PolicyCalendarEvent
@@ -54,7 +56,8 @@ import java.time.YearMonth
 @Composable
 fun CalendarScreen(
     events: List<PolicyCalendarEvent> = SampleData.calendarEvents,
-    today: LocalDate = LocalDate.of(2026, 5, 15),
+    today: LocalDate = LocalDate.now(),
+    favorites: Set<String> = emptySet(),
     onPolicyClick: (String) -> Unit = {},
 ) {
     val colors = AppTheme.colors
@@ -64,6 +67,11 @@ fun CalendarScreen(
     val eventsByDate = remember(events) { events.groupBy { it.date } }
     val selectedEvents: List<PolicyCalendarEvent> =
         selectedDate?.let { eventsByDate[it.toString()] } ?: emptyList()
+    // 이번 달에 일정이 하나도 없는지
+    val isMonthEmpty = remember(displayedMonth, eventsByDate) {
+        val prefix = "%04d-%02d".format(displayedMonth.year, displayedMonth.monthValue)
+        eventsByDate.keys.none { it.startsWith(prefix) }
+    }
 
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -94,8 +102,19 @@ fun CalendarScreen(
                         eventsByDate = eventsByDate,
                         today = today,
                         selected = selectedDate,
+                        favorites = favorites,
                         onSelect = { d -> selectedDate = d },
                     )
+                }
+            }
+
+            // 이번 달 빈 안내 — 그리드 아래, 범례 위
+            if (isMonthEmpty) {
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        EmptyMonthCard()
+                    }
                 }
             }
 
@@ -130,6 +149,7 @@ fun CalendarScreen(
                     Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                         CalendarEventCard(
                             event = e,
+                            isFavorite = e.policyId in favorites,
                             onClick = { onPolicyClick(e.policyId) },
                         )
                     }
@@ -216,6 +236,7 @@ private fun CalendarBlock(
     eventsByDate: Map<String, List<PolicyCalendarEvent>>,
     today: LocalDate,
     selected: LocalDate?,
+    favorites: Set<String>,
     onSelect: (LocalDate) -> Unit,
 ) {
     val colors = AppTheme.colors
@@ -233,6 +254,7 @@ private fun CalendarBlock(
             eventsByDate = eventsByDate,
             today = today,
             selected = selected,
+            favorites = favorites,
             onSelect = onSelect,
         )
     }
@@ -266,6 +288,7 @@ private fun CalendarGrid(
     eventsByDate: Map<String, List<PolicyCalendarEvent>>,
     today: LocalDate,
     selected: LocalDate?,
+    favorites: Set<String>,
     onSelect: (LocalDate) -> Unit,
 ) {
     val firstOfMonth = month.atDay(1)
@@ -283,6 +306,7 @@ private fun CalendarGrid(
                         val date = month.atDay(dayNum)
                         val key = date.toString()
                         val events = eventsByDate[key].orEmpty()
+                        val hasFavorite = events.any { it.policyId in favorites }
                         DayCell(
                             day = dayNum,
                             isToday = date == today,
@@ -290,6 +314,7 @@ private fun CalendarGrid(
                             isSunday = dow == 0,
                             isSaturday = dow == 6,
                             events = events,
+                            hasFavorite = hasFavorite,
                             onClick = { onSelect(date) },
                             modifier = Modifier.weight(1f),
                         )
@@ -312,6 +337,7 @@ private fun DayCell(
     isSunday: Boolean,
     isSaturday: Boolean,
     events: List<PolicyCalendarEvent>,
+    hasFavorite: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -352,19 +378,26 @@ private fun DayCell(
             )
         }
         Spacer(Modifier.height(3.dp))
-        // 일정 dot — 최대 3개
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val distinctKinds = events.map { it.kind }.distinct().take(3)
-            distinctKinds.forEach { k ->
-                Box(
-                    modifier = Modifier
-                        .size(5.dp)
-                        .clip(CircleShape)
-                        .background(kindColor(k))
-                )
+        // 즐겨찾기 정책 마감일이면 ⭐ 강조, 아니면 dot
+        if (hasFavorite) {
+            Text(
+                text = "⭐",
+                style = TextStyle(fontSize = 10.sp),
+            )
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val distinctKinds = events.map { it.kind }.distinct().take(3)
+                distinctKinds.forEach { k ->
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(kindColor(k))
+                    )
+                }
             }
         }
     }
@@ -455,7 +488,11 @@ private fun koreanDow(dow: DayOfWeek): String = when (dow) {
 }
 
 @Composable
-private fun CalendarEventCard(event: PolicyCalendarEvent, onClick: () -> Unit) {
+private fun CalendarEventCard(
+    event: PolicyCalendarEvent,
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+) {
     val colors = AppTheme.colors
     Row(
         modifier = Modifier
@@ -489,6 +526,34 @@ private fun CalendarEventCard(event: PolicyCalendarEvent, onClick: () -> Unit) {
             style = MaterialTheme.typography.titleMedium,
             color = colors.textPrimary,
             modifier = Modifier.weight(1f),
+        )
+        if (isFavorite) {
+            Spacer(Modifier.width(8.dp))
+            Text(text = "⭐", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+@Composable
+private fun EmptyMonthCard() {
+    val colors = AppTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(colors.cardBg)
+            .padding(horizontal = 20.dp, vertical = 22.dp),
+    ) {
+        Text(
+            text = "이번 달엔 등록된 마감 일정이 없어요",
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "정부 정책 95%가 상시 신청이라 마감일이 없어요. 즐겨찾기한 정책의 마감일은 자동으로 ⭐ 표시돼요.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textTertiary,
         )
     }
 }

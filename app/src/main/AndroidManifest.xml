@@ -18,6 +18,11 @@
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="34">
 
+        <!-- AdMob App ID (실 ID, 디버그/릴리스 공용). 디버그 빌드는 AdManager가 테스트 광고 단위 ID 사용 -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-2968584390793166~2516614596" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

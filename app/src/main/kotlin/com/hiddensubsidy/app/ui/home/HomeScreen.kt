@@ -54,11 +54,21 @@ private const val SIDE_PADDING = 16
 @Composable
 fun HomeScreen(
     data: HomeData = SampleData.home,
+    profile: com.hiddensubsidy.app.data.model.UserProfile = com.hiddensubsidy.app.data.model.UserProfile(),
+    mySummary: com.hiddensubsidy.app.data.model.MySummary = SampleData.mySummary,
+    activeTriggers: Set<String> = emptySet(),
+    eventBundles: List<com.hiddensubsidy.app.data.model.EventBundle> = emptyList(),
     onMissedCardClick: () -> Unit = {},
     onPolicyClick: (Policy) -> Unit = {},
+    onCategoryClick: (String) -> Unit = {},
+    onTriggerCardClick: () -> Unit = {},
+    onProgressClick: () -> Unit = {},
+    onProfileEditClick: () -> Unit = {},
     onSeeAllDeadlines: () -> Unit = {},
     onSeeAllThisWeek: () -> Unit = {},
     onSearchClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     isLoading: Boolean = false,
 ) {
     val colors = AppTheme.colors
@@ -71,7 +81,13 @@ fun HomeScreen(
                 bottom = 24.dp,
             ),
         ) {
-            item { TopBar(onSearchClick = onSearchClick) }
+            item {
+                TopBar(
+                    onSearchClick = onSearchClick,
+                    onNotificationClick = onNotificationClick,
+                    onProfileClick = onProfileClick,
+                )
+            }
 
             // === 임팩트 카드 ===
             item {
@@ -84,6 +100,19 @@ fun HomeScreen(
                             amount = data.missedTotalAmount,
                             count  = data.missedCount,
                             onClick = onMissedCardClick,
+                        )
+                    }
+                }
+            }
+
+            // === 카테고리 6 매트릭스 ===
+            if (!isLoading && data.categorySummary.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Box(modifier = Modifier.padding(horizontal = SIDE_PADDING.dp)) {
+                        CategoryMatrixCard(
+                            summary = data.categorySummary,
+                            onCategoryClick = onCategoryClick,
                         )
                     }
                 }
@@ -103,6 +132,20 @@ fun HomeScreen(
                 }
             }
 
+            // === 트리거 활성 미니카드 ===
+            if (!isLoading) {
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Box(modifier = Modifier.padding(horizontal = SIDE_PADDING.dp)) {
+                        TriggerMiniCard(
+                            activeTriggers = activeTriggers,
+                            eventBundles = eventBundles,
+                            onClick = onTriggerCardClick,
+                        )
+                    }
+                }
+            }
+
             // === 곧 마감돼요 (카드형) ===
             if (data.deadlineSoon.isNotEmpty()) {
                 item {
@@ -116,6 +159,32 @@ fun HomeScreen(
                     }
                 }
             }
+
+            // === 내 진척 요약 미니 ===
+            if (!isLoading) {
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Box(modifier = Modifier.padding(horizontal = SIDE_PADDING.dp)) {
+                        ProgressMiniCard(
+                            summary = mySummary,
+                            onClick = onProgressClick,
+                        )
+                    }
+                }
+            }
+
+            // === 프로필 완성도 칩 (100% 미만일 때만) ===
+            if (!isLoading && profile.completeness < 1f) {
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Box(modifier = Modifier.padding(horizontal = SIDE_PADDING.dp)) {
+                        ProfileCompletenessCard(
+                            percent = (profile.completeness * 100).toInt(),
+                            onClick = onProfileEditClick,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -124,7 +193,11 @@ fun HomeScreen(
 // 상단바 (토스 메인 홈 36 톤)
 // =============================================================
 @Composable
-private fun TopBar(onSearchClick: () -> Unit = {}) {
+private fun TopBar(
+    onSearchClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
+) {
     val colors = AppTheme.colors
     Row(
         modifier = Modifier
@@ -139,8 +212,8 @@ private fun TopBar(onSearchClick: () -> Unit = {}) {
             modifier = Modifier.weight(1f),
         )
         TopBarIcon(icon = Icons.Rounded.Search, onClick = onSearchClick)
-        TopBarIcon(icon = Icons.Rounded.NotificationsNone)
-        TopBarIcon(icon = Icons.Rounded.Person)
+        TopBarIcon(icon = Icons.Rounded.NotificationsNone, onClick = onNotificationClick)
+        TopBarIcon(icon = Icons.Rounded.Person, onClick = onProfileClick)
     }
 }
 
@@ -458,6 +531,268 @@ private fun DDayPill(daysLeft: Int) {
         background = bg,
         contentColor = text,
     )
+}
+
+// =============================================================
+// 카테고리 6 매트릭스 (2×3 그리드)
+// =============================================================
+@Composable
+private fun CategoryMatrixCard(
+    summary: Map<String, com.hiddensubsidy.app.data.model.CategoryStats>,
+    onCategoryClick: (String) -> Unit,
+) {
+    val colors = AppTheme.colors
+    val categories = listOf("주거", "출산", "생활", "교육", "청년", "창업")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(colors.cardBg)
+            .padding(top = 20.dp, bottom = 12.dp, start = 12.dp, end = 12.dp),
+    ) {
+        Text(
+            text = "카테고리별 받을 수 있어요",
+            style = MaterialTheme.typography.titleLarge,
+            color = colors.textPrimary,
+            modifier = Modifier.padding(start = 8.dp, bottom = 12.dp),
+        )
+        // 2열 × 3행 그리드
+        for (row in 0 until 3) {
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                for (col in 0 until 2) {
+                    val idx = row * 2 + col
+                    val cat = categories[idx]
+                    val stats = summary[cat] ?: com.hiddensubsidy.app.data.model.CategoryStats(0, 0L)
+                    CategoryCell(
+                        category = cat,
+                        count = stats.count,
+                        onClick = { onCategoryClick(cat) },
+                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryCell(
+    category: String,
+    count: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AppTheme.colors
+    Row(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.large)
+            .background(categoryBubble(category).copy(alpha = 0.25f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconBubble(
+            emoji = categoryEmoji(category),
+            background = categoryBubble(category),
+            size = 36.dp,
+            fontSize = 18,
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = category,
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "${count}건",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+        }
+    }
+}
+
+// =============================================================
+// 트리거 활성 미니카드 — 마크된 이벤트 강조 / 비활성이면 마크 유도
+// =============================================================
+@Composable
+private fun TriggerMiniCard(
+    activeTriggers: Set<String>,
+    eventBundles: List<com.hiddensubsidy.app.data.model.EventBundle>,
+    onClick: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    val activeBundle = eventBundles.firstOrNull { it.eventId in activeTriggers }
+    val isActive = activeBundle != null
+    val bg = if (isActive) colors.accentBg else colors.cardBg
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val event = activeBundle?.event
+        IconBubble(
+            emoji = event?.emoji ?: "🎯",
+            background = if (isActive) colors.accent else colors.cardBorder,
+            size = 44.dp,
+            fontSize = 22,
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            if (isActive && activeBundle != null && event != null) {
+                Text(
+                    text = "${event.label} 진행 중이에요",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isActive) colors.accentText else colors.textPrimary,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "관련 지원금 ${activeBundle.count}건을 챙기세요",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isActive) colors.accentText else colors.textTertiary,
+                )
+            } else {
+                Text(
+                    text = "이사·결혼·임신… 시점을 알려주세요",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colors.textPrimary,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "마크하면 6개월간 관련 지원금을 강조해드려요",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textTertiary,
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+            contentDescription = null,
+            tint = if (isActive) colors.accentText else colors.textTertiary,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+// =============================================================
+// 내 진척 요약 미니 — 받을 예정/신청/받음 카운트
+// =============================================================
+@Composable
+private fun ProgressMiniCard(
+    summary: com.hiddensubsidy.app.data.model.MySummary,
+    onClick: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(colors.cardBg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "내 진척",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = null,
+                tint = colors.textTertiary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            ProgressStat(emoji = "⭐", count = summary.savedCount, label = "받을 예정", modifier = Modifier.weight(1f))
+            ProgressStat(emoji = "📝", count = summary.appliedCount, label = "신청한", modifier = Modifier.weight(1f))
+            ProgressStat(emoji = "✅", count = summary.receivedCount, label = "받은", modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun ProgressStat(
+    emoji: String,
+    count: Int,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AppTheme.colors
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(text = emoji, style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "${count}건",
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textTertiary,
+        )
+    }
+}
+
+// =============================================================
+// 프로필 완성도 칩
+// =============================================================
+@Composable
+private fun ProfileCompletenessCard(
+    percent: Int,
+    onClick: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(colors.cardBg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "🧩", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "프로필 ${percent}%",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "더 채우면 매칭이 늘어나요",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textTertiary,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(colors.accentBg)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            Text(
+                text = "채우기",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.accentText,
+            )
+        }
+    }
 }
 
 // =============================================================

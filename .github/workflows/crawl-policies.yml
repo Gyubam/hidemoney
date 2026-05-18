@@ -11,9 +11,9 @@ on:
         required: false
         default: 'true'
       list_only:
-        description: 'list_services만 fetch (true=빠른 풀빌드, false=detail까지 받음)'
+        description: 'list_services만 fetch (true=목록 메타만, false=detail+conditions까지 풀빌드)'
         required: false
-        default: 'true'
+        default: 'false'
       enrich:
         description: 'Gemini Flash로 정규화·정련 (true/false). list_only=true면 자동 비활성'
         required: false
@@ -64,7 +64,7 @@ jobs:
           GEMINI_MODEL: gemini-2.0-flash
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
           CRAWL: ${{ github.event.inputs.crawl || 'true' }}
-          LIST_ONLY: ${{ github.event.inputs.list_only || 'true' }}
+          LIST_ONLY: ${{ github.event.inputs.list_only || 'false' }}
           ENRICH: ${{ github.event.inputs.enrich || 'false' }}
           LIMIT: ${{ github.event.inputs.limit || '0' }}
           USER_TYPE: ${{ github.event.inputs.user_type || '개인,가구' }}

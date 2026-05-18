@@ -19,15 +19,26 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.LaunchedEffect
+import com.hiddensubsidy.app.ads.AdManager
+import com.hiddensubsidy.app.data.ApplicationStatusRepository
+import com.hiddensubsidy.app.data.AuthRepository
 import com.hiddensubsidy.app.data.CachedPolicyRepository
+import com.hiddensubsidy.app.data.CalendarAggregator
+import com.hiddensubsidy.app.data.CloudSyncRepository
+import com.hiddensubsidy.app.data.DismissedRepository
+import com.hiddensubsidy.app.data.EventAggregator
+import com.hiddensubsidy.app.data.EventTriggerRepository
 import com.hiddensubsidy.app.data.FavoritesRepository
 import com.hiddensubsidy.app.notification.NotificationScheduler
 import com.hiddensubsidy.app.data.HomeAggregator
@@ -50,6 +61,7 @@ import com.hiddensubsidy.app.ui.components.BottomTabBar
 import com.hiddensubsidy.app.ui.detail.PolicyDetailScreen
 import com.hiddensubsidy.app.ui.events.EventDetailScreen
 import com.hiddensubsidy.app.ui.events.EventListScreen
+import com.hiddensubsidy.app.ui.auth.LoginScreen
 import com.hiddensubsidy.app.ui.favorites.FavoritesScreen
 import com.hiddensubsidy.app.ui.home.HomeScreen
 import com.hiddensubsidy.app.ui.search.SearchScreen
@@ -71,6 +83,8 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("hs_prefs", Context.MODE_PRIVATE)
         // 매일 1회 정책 마감 검사 (즐겨찾기 정책 D-3/D-1/D-0 알림). KEEP 정책이라 중복 X
         NotificationScheduler.schedulePeriodic(applicationContext)
+        // AdMob SDK 초기화 + 첫 광고 미리 로드 (5번째 정책 상세 진입 시 표시)
+        AdManager.initialize(applicationContext)
         // 알림 클릭으로 진입한 경우 policy id 픽업
         pendingPolicyId.value = intent?.getStringExtra(
             com.hiddensubsidy.app.notification.NotificationHelper.EXTRA_POLICY_ID
@@ -129,7 +143,11 @@ private sealed class Screen {
     data class EventDetail(val id: String) : Screen()
     data object ProfileEdit : Screen()
     data object Favorites : Screen()
-    data object Search : Screen()
+    data object Applied : Screen()
+    data object Received : Screen()
+    data object Dismissed : Screen()
+    data class Search(val initialCategory: String? = null) : Screen()
+    data object Login : Screen()
 }
 
 @Composable
@@ -177,24 +195,64 @@ private fun AppRoot(
     val byId = remember(allPolicies) { allPolicies.associateBy { it.id } }
 
     var profile by remember { mutableStateOf(UserPrefs.load(context)) }
+    var dismissed by remember { mutableStateOf(DismissedRepository.load(context)) }
     val requestNotif = rememberNotificationPermissionRequest { granted ->
         val msg = if (granted) "🔔 알림이 켜졌어요" else "알림 권한이 거부됐어요"
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
-    val home = remember(profile, allPolicies) {
-        HomeAggregator.computeHome(allPolicies, profile, today)
-    }
-    val calendarEvents = remember(profile, allPolicies) {
-        SampleData.calendarEvents.filter { e ->
-            byId[e.policyId]?.matchedWith(profile)?.isEligible == true
+    // isLoading 동안엔 SampleData 19개로 매칭된 가짜 thisWeek/deadlineSoon이 잠깐 보이는 사고 방지.
+    // 빈 HomeData면 HomeScreen이 카드 자체를 안 그림 (firstOrNull?.let / isNotEmpty 분기).
+    val home = remember(profile, allPolicies, isLoading, dismissed) {
+        if (isLoading) {
+            com.hiddensubsidy.app.data.model.HomeData(0L, 0, emptyList(), emptyList(), emptyList())
+        } else {
+            HomeAggregator.computeHome(allPolicies, profile, today, dismissed)
         }
     }
     var favorites by remember { mutableStateOf(FavoritesRepository.load(context)) }
-    val mySummary = remember(favorites, allPolicies) {
+    val calendarEvents = remember(profile, allPolicies, favorites, today) {
+        CalendarAggregator.compute(allPolicies, favorites, profile, today)
+    }
+    val eventBundles = remember(profile, allPolicies) {
+        EventAggregator.compute(allPolicies, profile)
+    }
+    var activeTriggers by remember { mutableStateOf(EventTriggerRepository.loadActive(context)) }
+    // Firebase Auth — 미로그인이어도 앱 그대로 동작 (게스트 모드). 로그인 시 displayName/email 표시
+    val authUser by AuthRepository.authState.collectAsState(initial = AuthRepository.currentUser)
+    val scope = rememberCoroutineScope()
+    var applied by remember { mutableStateOf(ApplicationStatusRepository.loadApplied(context)) }
+    var received by remember { mutableStateOf(ApplicationStatusRepository.loadReceived(context)) }
+
+    // 로그인 시 Firestore pull → 모든 로컬 state 갱신 (uid 변경 감지)
+    LaunchedEffect(authUser?.uid) {
+        val uid = authUser?.uid ?: return@LaunchedEffect
+        val pulled = CloudSyncRepository.pullFromCloud(context, uid)
+        if (pulled) {
+            favorites = FavoritesRepository.load(context)
+            applied = ApplicationStatusRepository.loadApplied(context)
+            received = ApplicationStatusRepository.loadReceived(context)
+            dismissed = DismissedRepository.load(context)
+            activeTriggers = EventTriggerRepository.loadActive(context)
+            profile = UserPrefs.load(context)
+        }
+    }
+    // 로컬 변경 시 클라우드 push (로그인 상태일 때만, debounce 800ms로 연속 토글 합침)
+    LaunchedEffect(favorites, applied, received, dismissed, activeTriggers, profile, authUser?.uid) {
+        val uid = authUser?.uid ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(800)
+        CloudSyncRepository.pushToCloud(context, uid)
+    }
+    val mySummary = remember(favorites, applied, received, allPolicies) {
         val favoritePolicies = favorites.mapNotNull { byId[it] }
-        SampleData.mySummary.copy(
+        val appliedPolicies = applied.mapNotNull { byId[it] }
+        val receivedPolicies = received.mapNotNull { byId[it] }
+        com.hiddensubsidy.app.data.model.MySummary(
             savedCount = favoritePolicies.size,
             savedAmount = favoritePolicies.sumOf { it.amount },
+            appliedCount = appliedPolicies.size,
+            appliedAmount = appliedPolicies.sumOf { it.amount },
+            receivedCount = receivedPolicies.size,
+            receivedAmount = receivedPolicies.sumOf { it.amount },
         )
     }
     var tab by remember { mutableStateOf(0) }
@@ -209,6 +267,8 @@ private fun AppRoot(
             detailReturnScreen = screen
         }
         screen = Screen.PolicyDetail(policy.id)
+        // 전면 광고 hook — 5번에 1번, 30초 보호 + 5분 쿨다운은 AdManager 내부 정책
+        (context as? android.app.Activity)?.let { AdManager.onPolicyDetailEntered(it) }
     }
     val navigateToEventDetail: (com.hiddensubsidy.app.data.model.EventBundle) -> Unit = { bundle ->
         if (screen !is Screen.PolicyDetail && screen !is Screen.EventDetail) {
@@ -259,13 +319,39 @@ private fun AppRoot(
                 onEventClick = navigateToEventDetail,
                 home = home,
                 calendarEvents = calendarEvents,
+                favorites = favorites,
+                eventBundles = eventBundles,
+                activeTriggers = activeTriggers,
                 onRequestNotification = requestNotif,
                 profile = profile,
                 onEditProfile = { screen = Screen.ProfileEdit },
                 mySummary = mySummary,
                 byId = byId,
                 onFavoritesClick = { screen = Screen.Favorites },
-                onSearchClick = { screen = Screen.Search },
+                onAppliedClick = { screen = Screen.Applied },
+                onReceivedClick = { screen = Screen.Received },
+                onCategoryClick = { cat -> screen = Screen.Search(initialCategory = cat) },
+                onTriggerCardClick = { tab = 2 },  // 이벤트 탭으로 이동
+                onProgressClick = { screen = Screen.Favorites },  // 마이 진척 → 받을 예정 화면
+                onProfileEditClick = { screen = Screen.ProfileEdit },
+                signedInName = authUser?.displayName,
+                signedInEmail = authUser?.email,
+                onSignInClick = { screen = Screen.Login },
+                onSignOutClick = {
+                    scope.launch {
+                        AuthRepository.signOut(context)
+                        Toast.makeText(context, "로그아웃했어요", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                dismissedCount = dismissed.size,
+                onDismissedClick = { screen = Screen.Dismissed },
+                onSearchClick = { screen = Screen.Search() },
+                onNotificationIconClick = requestNotif,
+                onProfileIconClick = { tab = 3 },
+                onSeeAllClick = { screen = Screen.Search() },
+                onPremiumClick = {
+                    Toast.makeText(context, "프리미엄 기능은 출시 후 준비 중이에요", Toast.LENGTH_SHORT).show()
+                },
                 isLoading = isLoading,
             )
 
@@ -275,6 +361,9 @@ private fun AppRoot(
                     PolicyDetailScreen(
                         policy = p,
                         isFavorite = p.id in favorites,
+                        isApplied = p.id in applied,
+                        isReceived = p.id in received,
+                        isDismissed = p.id in dismissed,
                         onBack = { screen = detailReturnScreen },
                         onToggleFavorite = {
                             favorites = FavoritesRepository.toggle(context, p.id)
@@ -283,17 +372,44 @@ private fun AppRoot(
                             // 즐겨찾기 변경 시 즉시 1회 검사 (당일 D-3/D-1/D-0 알림 빠진 거 채움)
                             NotificationScheduler.runOnce(context)
                         },
+                        onToggleApplied = {
+                            val (newApplied, newReceived) = ApplicationStatusRepository.toggleApplied(context, p.id)
+                            applied = newApplied
+                            received = newReceived
+                            val msg = if (p.id in newApplied) "신청한 지원금에 추가했어요" else "신청 상태를 해제했어요"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        },
+                        onToggleReceived = {
+                            val (newApplied, newReceived) = ApplicationStatusRepository.toggleReceived(context, p.id)
+                            applied = newApplied
+                            received = newReceived
+                            val msg = if (p.id in newReceived) "받은 지원금에 추가했어요 🎉" else "받음 상태를 해제했어요"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        },
+                        onToggleDismissed = {
+                            dismissed = DismissedRepository.toggle(context, p.id)
+                            val msg = if (p.id in dismissed) "관심 없음으로 표시했어요" else "다시 표시되도록 했어요"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        },
                     )
                 }
             }
 
             is Screen.EventDetail -> {
-                val e = SampleData.findEvent(s.id)
+                val e = eventBundles.firstOrNull { it.eventId == s.id }
                 if (e != null) {
                     EventDetailScreen(
                         bundle = e,
+                        isActive = e.eventId in activeTriggers,
                         onBack = { screen = detailReturnScreen },
                         onPolicyClick = navigateToPolicyDetail,
+                        onToggleTrigger = {
+                            val nowActive = EventTriggerRepository.toggle(context, e.eventId)
+                            activeTriggers = EventTriggerRepository.loadActive(context)
+                            val label = e.event?.label ?: "이벤트"
+                            val msg = if (nowActive) "${label} 시점을 마크했어요" else "${label} 마크를 해제했어요"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        },
                     )
                 }
             }
@@ -319,6 +435,7 @@ private fun AppRoot(
                     profile = profile,
                     onBack = { screen = Screen.Tabs },
                     onPolicyClick = navigateToPolicyDetail,
+                    initialCategory = s.initialCategory,
                 )
             }
 
@@ -338,6 +455,56 @@ private fun AppRoot(
                     favorites = favoritePolicies,
                     onBack = { screen = Screen.Tabs },
                     onPolicyClick = navigateToPolicyDetail,
+                    kind = com.hiddensubsidy.app.ui.favorites.PolicyStatusKind.Saved,
+                )
+            }
+
+            is Screen.Applied -> {
+                val appliedPolicies = remember(applied, allPolicies, profile) {
+                    applied.mapNotNull { byId[it] }
+                        .map { it.matchedWith(profile).withFreshDaysLeft(today) }
+                        .sortedByDescending { it.amount }
+                }
+                FavoritesScreen(
+                    favorites = appliedPolicies,
+                    onBack = { screen = Screen.Tabs },
+                    onPolicyClick = navigateToPolicyDetail,
+                    kind = com.hiddensubsidy.app.ui.favorites.PolicyStatusKind.Applied,
+                )
+            }
+
+            is Screen.Received -> {
+                val receivedPolicies = remember(received, allPolicies, profile) {
+                    received.mapNotNull { byId[it] }
+                        .map { it.matchedWith(profile).withFreshDaysLeft(today) }
+                        .sortedByDescending { it.amount }
+                }
+                FavoritesScreen(
+                    favorites = receivedPolicies,
+                    onBack = { screen = Screen.Tabs },
+                    onPolicyClick = navigateToPolicyDetail,
+                    kind = com.hiddensubsidy.app.ui.favorites.PolicyStatusKind.Received,
+                )
+            }
+
+            is Screen.Dismissed -> {
+                val dismissedPolicies = remember(dismissed, allPolicies, profile) {
+                    dismissed.mapNotNull { byId[it] }
+                        .map { it.matchedWith(profile).withFreshDaysLeft(today) }
+                        .sortedByDescending { it.amount }
+                }
+                FavoritesScreen(
+                    favorites = dismissedPolicies,
+                    onBack = { screen = Screen.Tabs },
+                    onPolicyClick = navigateToPolicyDetail,
+                    kind = com.hiddensubsidy.app.ui.favorites.PolicyStatusKind.Dismissed,
+                )
+            }
+
+            is Screen.Login -> {
+                LoginScreen(
+                    onBack = { screen = Screen.Tabs },
+                    onSuccess = { screen = Screen.Tabs },
                 )
             }
         }
@@ -347,6 +514,12 @@ private fun AppRoot(
         MissedSheet(
             data = home,
             onDismiss = { showMissed = false },
+            onGrantClick = { grant ->
+                byId[grant.id]?.let {
+                    showMissed = false
+                    navigateToPolicyDetail(it)
+                }
+            },
             onShare = {
                 ShareHelper.shareMissed(
                     context = context,
@@ -371,13 +544,32 @@ private fun TabsHost(
     onEventClick: (com.hiddensubsidy.app.data.model.EventBundle) -> Unit,
     home: com.hiddensubsidy.app.data.model.HomeData,
     calendarEvents: List<com.hiddensubsidy.app.data.model.PolicyCalendarEvent>,
+    favorites: Set<String>,
+    eventBundles: List<com.hiddensubsidy.app.data.model.EventBundle>,
+    activeTriggers: Set<String>,
     onRequestNotification: () -> Unit,
     profile: com.hiddensubsidy.app.data.model.UserProfile,
     onEditProfile: () -> Unit,
     mySummary: com.hiddensubsidy.app.data.model.MySummary,
     byId: Map<String, com.hiddensubsidy.app.data.model.Policy>,
     onFavoritesClick: () -> Unit,
+    onAppliedClick: () -> Unit,
+    onReceivedClick: () -> Unit,
     onSearchClick: () -> Unit,
+    onCategoryClick: (String) -> Unit,
+    onTriggerCardClick: () -> Unit,
+    onProgressClick: () -> Unit,
+    onProfileEditClick: () -> Unit,
+    onNotificationIconClick: () -> Unit,
+    onProfileIconClick: () -> Unit,
+    onSeeAllClick: () -> Unit,
+    onPremiumClick: () -> Unit,
+    signedInName: String?,
+    signedInEmail: String?,
+    onSignInClick: () -> Unit,
+    onSignOutClick: () -> Unit,
+    dismissedCount: Int,
+    onDismissedClick: () -> Unit,
     isLoading: Boolean,
 ) {
     val context = LocalContext.current
@@ -389,17 +581,31 @@ private fun TabsHost(
             when (tab) {
                 0 -> HomeScreen(
                     data = home,
+                    profile = profile,
+                    mySummary = mySummary,
+                    activeTriggers = activeTriggers,
+                    eventBundles = eventBundles,
                     onMissedCardClick = onMissedCardClick,
                     onPolicyClick = onPolicyClick,
+                    onCategoryClick = onCategoryClick,
+                    onTriggerCardClick = onTriggerCardClick,
+                    onProgressClick = onProgressClick,
+                    onProfileEditClick = onProfileEditClick,
                     onSearchClick = onSearchClick,
+                    onNotificationClick = onNotificationIconClick,
+                    onProfileClick = onProfileIconClick,
+                    onSeeAllThisWeek = onSeeAllClick,
+                    onSeeAllDeadlines = onSeeAllClick,
                     isLoading = isLoading,
                 )
                 1 -> CalendarScreen(
                     events = calendarEvents,
+                    favorites = favorites,
                     onPolicyClick = { id -> byId[id]?.let(onPolicyClick) },
                 )
                 2 -> EventListScreen(
-                    events = SampleData.events,
+                    events = eventBundles,
+                    activeTriggers = activeTriggers,
                     onEventClick = onEventClick,
                 )
                 else -> MyScreen(
@@ -411,6 +617,15 @@ private fun TabsHost(
                     onPrivacyPolicy = { ShareHelper.openPrivacyPolicy(context) },
                     onFeedback = { ShareHelper.sendFeedback(context) },
                     onFavoritesClick = onFavoritesClick,
+                    onAppliedClick = onAppliedClick,
+                    onReceivedClick = onReceivedClick,
+                    onPremiumClick = onPremiumClick,
+                    signedInName = signedInName,
+                    signedInEmail = signedInEmail,
+                    onSignInClick = onSignInClick,
+                    onSignOutClick = onSignOutClick,
+                    dismissedCount = dismissedCount,
+                    onDismissedClick = onDismissedClick,
                 )
             }
         }

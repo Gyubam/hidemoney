@@ -46,11 +46,14 @@ private const val SIDE = 16
 @Composable
 fun EventDetailScreen(
     bundle: EventBundle,
+    isActive: Boolean = false,
     onBack: () -> Unit,
     onPolicyClick: (Policy) -> Unit,
+    onToggleTrigger: () -> Unit = {},
 ) {
     val colors = AppTheme.colors
     val event = bundle.event ?: return
+    val totalCount = bundle.count
 
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -69,22 +72,118 @@ fun EventDetailScreen(
                 }
             }
 
-            bundle.groups.forEach { group ->
+            // 트리거 토글 CTA — "내가 이사했어요" 시점 마크
+            item {
+                Spacer(Modifier.height(12.dp))
+                Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
+                    TriggerToggleCard(
+                        label = event.label,
+                        isActive = isActive,
+                        onClick = onToggleTrigger,
+                    )
+                }
+            }
+
+            if (totalCount == 0) {
                 item {
                     Spacer(Modifier.height(20.dp))
-                    GroupHeader(group = group)
-                    Spacer(Modifier.height(8.dp))
+                    Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
+                        EmptyEventCard(label = event.label)
+                    }
                 }
-                group.policies.forEachIndexed { idx, policy ->
-                    item(key = "${group.label}-${policy.id}-$idx") {
-                        Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
-                            PolicyRow(policy = policy, onClick = { onPolicyClick(policy) })
+            } else {
+                bundle.groups.forEach { group ->
+                    item {
+                        Spacer(Modifier.height(20.dp))
+                        GroupHeader(group = group)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    group.policies.forEachIndexed { idx, policy ->
+                        item(key = "${group.label}-${policy.id}-$idx") {
+                            Box(modifier = Modifier.padding(horizontal = SIDE.dp)) {
+                                PolicyRow(policy = policy, onClick = { onPolicyClick(policy) })
+                            }
+                            Spacer(Modifier.height(10.dp))
                         }
-                        Spacer(Modifier.height(10.dp))
                     }
                 }
             }
         }
+    }
+}
+
+// =============================================================
+// 트리거 토글 카드 — "내가 ○○했어요" 시점 마크
+// =============================================================
+@Composable
+private fun TriggerToggleCard(
+    label: String,
+    isActive: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    val bg = if (isActive) colors.accent else colors.cardBg
+    val textColor = if (isActive) colors.onAccent else colors.textPrimary
+    val subColor = if (isActive) colors.onAccent.copy(alpha = 0.8f) else colors.textTertiary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (isActive) "${label} 중이에요" else "내가 ${label}해요",
+                style = MaterialTheme.typography.titleMedium,
+                color = textColor,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = if (isActive) "6개월간 관련 지원금을 강조해드려요" else "시점을 마크하면 관련 지원금을 강조해드려요",
+                style = MaterialTheme.typography.bodyMedium,
+                color = subColor,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(if (isActive) colors.onAccent.copy(alpha = 0.2f) else colors.accentBg)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        ) {
+            Text(
+                text = if (isActive) "해제" else "마크",
+                style = MaterialTheme.typography.labelLarge,
+                color = if (isActive) colors.onAccent else colors.accentText,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyEventCard(label: String) {
+    val colors = AppTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(colors.cardBg)
+            .padding(horizontal = 22.dp, vertical = 24.dp),
+    ) {
+        Text(
+            text = "현재 자격 충족인 ${label} 지원금이 없어요",
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "마이 → 프로필을 더 채우면 매칭률이 올라가요",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textTertiary,
+        )
     }
 }
 
