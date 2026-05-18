@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>숨은지원금 — 받게 만드는 정부 지원금 앱</title>
+    <meta name="description" content="놓친 정부 지원금을 발견해드려요. 9,923개 정책 자동 매칭. 매주 1개 추천.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #F2F4F8;
+            color: #191F28;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 720px; margin: 0 auto; padding: 24px; }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            margin-bottom: 40px;
+        }
+        nav .logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: #00805C;
+        }
+        nav a {
+            color: #4E5968;
+            text-decoration: none;
+            font-size: 14px;
+            margin-left: 16px;
+        }
+        nav a:hover { color: #00805C; }
+
+        .hero {
+            text-align: center;
+            padding: 40px 0 60px;
+        }
+        .hero h1 {
+            font-size: 44px;
+            font-weight: 800;
+            letter-spacing: -1.5px;
+            line-height: 1.15;
+            margin-bottom: 16px;
+        }
+        .hero h1 .accent { color: #00C896; }
+        .hero p.subtitle {
+            font-size: 18px;
+            color: #4E5968;
+            margin-bottom: 32px;
+        }
+        .hero .impact-card {
+            background: #FFFFFF;
+            border-radius: 24px;
+            padding: 32px 28px;
+            margin: 0 auto 24px;
+            max-width: 440px;
+            text-align: left;
+        }
+        .hero .impact-card .label {
+            color: #8B95A1;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .hero .impact-card .amount {
+            font-size: 56px;
+            font-weight: 900;
+            letter-spacing: -2px;
+            color: #191F28;
+            margin-bottom: 14px;
+        }
+        .hero .impact-card .divider {
+            height: 1px;
+            background: #E5E8EB;
+            margin-bottom: 14px;
+        }
+        .hero .impact-card .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #4E5968;
+            font-size: 14px;
+        }
+        .hero .impact-card .footer .link { color: #00805C; font-weight: 600; }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 56px;
+        }
+        .feature {
+            background: #FFFFFF;
+            border-radius: 20px;
+            padding: 24px 18px;
+            text-align: left;
+        }
+        .feature .emoji { font-size: 32px; margin-bottom: 12px; }
+        .feature .title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+        .feature .desc { font-size: 13px; color: #4E5968; }
+
+        section.detail {
+            background: #FFFFFF;
+            border-radius: 20px;
+            padding: 32px 28px;
+            margin-bottom: 16px;
+        }
+        section.detail h2 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+        section.detail p {
+            color: #4E5968;
+            font-size: 15px;
+            margin-bottom: 8px;
+        }
+        section.detail ul { list-style: none; padding: 0; }
+        section.detail li {
+            color: #4E5968;
+            font-size: 15px;
+            padding: 8px 0;
+            border-bottom: 1px solid #F2F4F6;
+            display: flex;
+            align-items: center;
+        }
+        section.detail li:last-child { border: none; }
+        section.detail li::before { content: '✓'; color: #00C896; margin-right: 10px; font-weight: 700; }
+
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: #8B95A1;
+            font-size: 13px;
+        }
+        footer a {
+            color: #4E5968;
+            text-decoration: none;
+            margin: 0 12px;
+        }
+        footer a:hover { color: #00805C; }
+
+        @media (max-width: 640px) {
+            .hero h1 { font-size: 32px; letter-spacing: -1px; }
+            .hero p.subtitle { font-size: 16px; }
+            .hero .impact-card .amount { font-size: 44px; }
+            .features { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <span class="logo">숨은지원금</span>
+            <div>
+                <a href="privacy.md">개인정보처리방침</a>
+                <a href="account-deletion.md">계정 삭제</a>
+                <a href="https://github.com/Gyubam/hidemoney">GitHub</a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <h1>받게 만드는<br><span class="accent">정부 지원금 앱</span></h1>
+            <p class="subtitle">검색이 아니라 매칭. 매주 1개씩 추천해드려요.</p>
+
+            <div class="impact-card">
+                <div class="label">놓치고 있는 돈</div>
+                <div class="amount">240만원</div>
+                <div class="divider"></div>
+                <div class="footer">
+                    <span>신청 안 한 12건</span>
+                    <span class="link">내역 보기 →</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="features">
+            <div class="feature">
+                <div class="emoji">🔍</div>
+                <div class="title">"놓친 돈" 진단</div>
+                <div class="desc">자격 있었는데 신청 안 한 정책을 한눈에</div>
+            </div>
+            <div class="feature">
+                <div class="emoji">📅</div>
+                <div class="title">매주 1개 추천</div>
+                <div class="desc">100개 보면 0개 신청. 1개 보면 1개 신청.</div>
+            </div>
+            <div class="feature">
+                <div class="emoji">🎉</div>
+                <div class="title">생애 이벤트</div>
+                <div class="desc">이사·결혼·임신·창업 시점에 묶음 안내</div>
+            </div>
+        </div>
+
+        <section class="detail">
+            <h2>💎 주요 기능</h2>
+            <ul>
+                <li>정부24·복지로 9,923개 정책 자동 매칭</li>
+                <li>나이·지역·직업·소득·가구 정밀 자격 매칭</li>
+                <li>즐겨찾기 정책 D-3/D-1/D-0 자동 알림</li>
+                <li>신청 → 받음 진척 추적</li>
+                <li>Google 로그인 시 폰 바꿔도 데이터 유지</li>
+                <li>검색·카테고리 필터 (주거·출산·생활·교육·청년·창업)</li>
+                <li>캘린더로 마감일 한눈에</li>
+            </ul>
+        </section>
+
+        <section class="detail">
+            <h2>🔐 개인정보</h2>
+            <p>위치·연락처·통화·사진 수집 안 함. 광고 식별자(GAID) 사용 안 함.</p>
+            <p>분석 SDK 일체 없음. 정책 매칭 정보는 기기에만 저장 (게스트 모드).</p>
+            <p>Google 로그인은 선택 — 클라우드 동기화 원할 때만.</p>
+        </section>
+
+        <section class="detail">
+            <h2>💰 비용</h2>
+            <p>100% 무료. 광고 있음. 인앱결제 없음.</p>
+            <p>1인 개발 + 운영비 0원으로 운영 중인 앱.</p>
+        </section>
+
+        <footer>
+            <p>1인 개발 · Seo Gyu Beom · sgb8154@gmail.com</p>
+            <p style="margin-top: 12px;">
+                <a href="privacy.md">개인정보처리방침</a>
+                ·
+                <a href="account-deletion.md">계정 삭제</a>
+                ·
+                <a href="https://github.com/Gyubam/hidemoney">GitHub</a>
+            </p>
+            <p style="margin-top: 16px; font-size: 12px;">정부 정책 데이터: 행정안전부 공공데이터포털 (data.go.kr)</p>
+        </footer>
+    </div>
+</body>
+</html>
