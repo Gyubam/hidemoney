@@ -7,9 +7,60 @@
 
 ## 📍 다음 세션 시작 가이드 (집/다른 PC에서 이어할 때)
 
-> 마지막 작업 시점: **2026-05-15 회사 PC**.
-> 정책 데이터 파이프라인 2단계까지 완료, GitHub Pages 활성화 + 3단계 (GitHub Actions 크롤러)가 남음.
+> **마지막 작업 시점: 2026-05-18 — Play Console 출시 심사 신청 완료 🎉**
+> 빌드/기능/자산 100% 완료. **Google 심사 대기 (1~3일)**. 다음 세션은 심사 결과 확인 + 폴리시 (스크린샷 보강 / 런처 아이콘 / 사용자 피드백 반영) 작업.
 > **`CLAUDE.md`에 사용자 프로필·디자인 톤·협업 규칙 다 운반함** — Claude Code가 자동 로드.
+
+### 🚦 현재 상태 (2026-05-18 22시 기준)
+
+| 영역 | 상태 |
+|---|---|
+| **앱 빌드** | AAB 서명 빌드 완료 (`app-release.aab` 10.4 MB) |
+| **Firebase** | Auth + Firestore + 두 패키지(debug/release) SHA-1 등록 완료 |
+| **AdMob** | 실 ID 등록 (`ca-app-pub-2968584390793166`), 전면 광고 디버그/릴리스 분기 |
+| **Play Console** | 검토 신청 완료 — Google 심사 대기 중 |
+| **GitHub Pages** | `https://gyubam.github.io/hidemoney/` 랜딩 페이지 + privacy + account-deletion + policies.json |
+| **데이터 cron** | 매일 KST 03:00 detail 풀빌드 (~5-10분) |
+| **신규 정책 알림** | WorkManager 24h diff baseline 동작 |
+| **출시 자산** | 아이콘 512 누끼 / 피처 그래픽 / privacy URL / 등록정보 텍스트 — 모두 업로드됨 |
+
+### 🔐 절대 잃어버리면 안 되는 것
+
+| 항목 | 위치 |
+|---|---|
+| **Release keystore** | `hidemoney-release.jks` (외장 백업 + Google Drive — 사용자가 직접 백업) |
+| **keystore.properties** | 비밀번호 포함 (gitignore, 백업 필수) |
+| **Keystore 비밀번호** | `PiC2wehlZ8Wy9p9lp2bU0aVC` (24자 영숫자 랜덤. 별도 비번 매니저 저장) |
+| **SHA-1 (release)** | `EC:F0:4D:C7:03:E7:CE:F6:94:99:D5:08:D9:A6:B9:90:1F:32:67:6F` |
+| **SHA-256 (release)** | `DC:26:60:CE:01:71:18:34:8A:7A:70:DE:9D:4F:53:B3:12:0F:D3:47:A7:D5:87:74:EE:BF:3F:C4:E7:DC:94:8F` |
+
+> **Play 앱 서명 활성화 추천**: Play Console에서 처음 업로드 시 "Google에서 키 관리" 선택 시 키 분실 복구 가능. 우리는 첫 업로드라 이 옵션 사용 가능.
+
+### 📅 다음 세션 할 일 (출시 후)
+
+**1순위 — 심사 결과 확인**:
+- https://play.google.com/console → 앱 → 출시 → 내부 테스트
+- 상태: `검토 중` → `사용 가능` (1~3일) 또는 `거부됨` (이유 표시)
+- 거부 시: 정책 위반 항목 fix + 재제출
+
+**2순위 — 폴리시 보강**:
+- **런처 아이콘 캐시 갱신 확인**: 폰에서 새 디자인 잘 보이는지. 안 보이면 백그라운드 색·foreground safe zone 조정
+- **스크린샷 보강**: 5장 캡처해서 Play Store에 추가 업로드 (출시 후 변경 가능)
+- **태블릿 스크린샷**: Play Console이 요구하면 폰 스크린샷 비율 맞춰 변환
+- **GitHub Pages 미리보기 (`index.html`)**: `https://gyubam.github.io/hidemoney/` 실제 동작 확인. 깨진 거 fix
+
+**3순위 — 사용자 피드백 반영**:
+- 베타 테스터 (지인 5~10명) Play Store 내부 테스트 링크 공유
+- 피드백 받아서 다음 라운드 작업
+- AdMob 광고 노출·클릭 통계 모니터링 (~1주일 후 통계 보임)
+- Firebase Auth 가입자 / Firestore 사용량 / 알림 수신 통계
+
+**4순위 — 추후 R 라운드**:
+- R10 LLM 정련 백필 (출시 후 데이터 품질 보강)
+- R8d 후속: 트리거 활성 정책 홈 missed 가중 노출 / WorkManager 알림 강화
+- Crashlytics 추가 (출시 후 크래시 모니터링)
+- 마이 → 알림 세부 옵션 (D-1/D-3/D-7 토글) — M7
+- 어필리에이트 (이사·결혼·임신·창업 시점) — 사업자 등록 후
 
 ### 🔧 0. 환경 셋업 (집 PC에서 첫 풀 받은 직후)
 
@@ -2426,4 +2477,45 @@ R11 대기 중 사용자 피드백 반영해 추가 작업들:
 - `tools/normalize.py` LLM_SUMMARY_PROMPT 강화 (period 적극 추론 + 좋은 예 3개)
 - `tools/build_policies.py` merge 로직 `_is_polished_summary` + `preserved_polished` 카운터
 - 둘 다 미래 R10 트리거 시 사용. 코드 자체는 출시에 영향 0. push 안 해도 OK (다음 cron 트리거 시 자동 반영)
+
+### 2026-05-18 (R12 완료 — 출시 심사 신청) 🎉
+
+**Claude 작업**:
+- `proguard-rules.pro` — kotlinx-serialization / Ktor / Firebase / AdMob / WorkManager / CloudUserData 보존 룰 완비
+- `app/build.gradle.kts` — `signingConfigs { release { ... } }` + keystore.properties 자동 로드 + `versionName 1.0.0`
+- `keystore.properties.example` — 사용자 참고용 (gitignore된 실 파일 외에)
+- `hidemoney-release.jks` 생성 (24자 랜덤 비밀번호 자동 생성, 비대화식 keytool)
+- `keystore.properties` 작성 (storeFile/Password/keyAlias/keyPassword)
+- `bundleRelease` 통과 → `app-release.aab` 10.4 MB
+- `docs/account-deletion.md` (Play Console 요구 — 계정 삭제 절차 페이지)
+- `docs/index.html` 토스 톤 랜딩 페이지 (https://gyubam.github.io/hidemoney/)
+- `docs/app-icon-512.png` 갱신 (원본 1254×1254 → 512×512 누끼 처리, RGBA 4 모서리 alpha=0 검증)
+- `mipmap-xxxhdpi/ic_launcher_foreground.png` 신 디자인으로 변경 (700×700 캔버스 + 467×467 safe zone 합성)
+
+**사용자 작업 (Play Console)**:
+- 앱 만들기 (`com.hiddensubsidy.app`, 한국어, 무료, 카테고리=금융)
+- 앱 액세스 권한: 제한 없음
+- 광고: 예 (AdMob 사용)
+- 콘텐츠 등급: 다른 모든 앱 / 모든 항목 아니요 → 만 3세 이상
+- 타겟층: 만 16~17세 + 만 18세 이상 (광고 단가 일부 ↓이지만 청년 정책 대상 포함)
+- 정부 앱: 아니요 (민간 1인 개발)
+- 금융 기능: 제공 안 함 (정보·매칭만)
+- 데이터 안전성:
+  - 위치(대략적), 개인정보(이름·이메일·UID·기타), 금융정보(소득), 앱활동(상호작용·기타), 기기ID(AdMob)
+  - 다 수집됨 / 임시처리 아니요 / 사용자 선택 / 이유는 항목별 (계정관리·앱기능·맞춤설정·광고)
+- 광고 ID 선언: 예 + 광고 또는 마케팅
+- 메인 스토어 등록정보: 짧은 설명·자세한 설명·아이콘·피처 그래픽 업로드
+- AAB 업로드 → 내부 테스트 트랙 → **검토 신청 완료** ✅
+
+**Firebase 콘솔**:
+- release 패키지 `com.hiddensubsidy.app` 추가 (debug용 `com.hiddensubsidy.app.debug`와 별도)
+- release SHA-1 등록
+- `google-services.json` 새로 받음 (두 패키지 모두 포함)
+
+**남은 사용자 작업 (검토 후)**:
+- 휴대전화 스크린샷 4~5장 (홈/마이/정책상세/캘린더/이벤트) — Play Console에서 출시 후에도 보강 가능
+- 베타 테스터 등록 (지인 5~10명 이메일을 Play Console 내부 테스트에 추가)
+- 심사 결과 대기 (~1~3일)
+
+
 
