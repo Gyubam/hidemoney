@@ -59,21 +59,21 @@ object EventAggregator {
         val eligible = matched.filter { PolicyRelevance.isEligibleForUser(it, profile) }
 
         return LifeEvent.entries.map { event ->
-            buildBundleFor(event, eligible)
+            buildBundleFor(event, eligible, profile)
         }
     }
 
-    private fun buildBundleFor(event: LifeEvent, eligible: List<Policy>): EventBundle {
+    private fun buildBundleFor(event: LifeEvent, eligible: List<Policy>, profile: UserProfile): EventBundle {
         val keywords = EVENT_KEYWORDS[event].orEmpty()
         val matched = eligible
             .filter { p ->
                 val text = "${p.title} ${p.summary}"
                 keywords.any { kw -> text.contains(kw) }
             }
-            .sortedByDescending { it.amount }
+            .sortedByRelevance(profile)
             .take(PER_EVENT_CAP)
 
-        val maxAmount = matched.firstOrNull()?.amount ?: 0L
+        val maxAmount = matched.maxOfOrNull { it.amount } ?: 0L
         val groupLabel = "${event.label}할 때 받는 지원금"
 
         return EventBundle(

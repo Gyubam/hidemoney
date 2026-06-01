@@ -56,7 +56,7 @@ object HomeAggregator {
         // 이번 주 정책 없으면 카드 자체를 안 그림 (HomeScreen이 firstOrNull?.let로 분기).
         val thisWeek = withDeadline
             .filter { it.daysLeft in 0..7 }
-            .maxByOrNull { it.amount }
+            .maxByOrNull { it.relevanceScore(profile) }
 
         // 마감 임박 (30일 이내, 이번 주 중복 제외)
         val deadlineSoon = withDeadline

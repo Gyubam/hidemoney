@@ -14,10 +14,9 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 /**
  * AdMob 전면 광고(Interstitial) 관리자.
  *
- * 빈도 정책 (토스 톤 유지 + 사용자 인내력 보호):
- *  - 정책 상세 진입 카운터: **5회마다 1번** 시도
- *  - 마지막 광고 후 **5분 쿨다운**
- *  - 앱 진입 후 **30초 안에는 X** (온보딩/첫 인상 보호)
+ * 노출 지점:
+ *  - 정책 상세 진입 카운터: **3회마다 1번** 시도
+ *  - 외부 신청 링크 클릭 시: **매번** 시도 (이탈 직전 타이밍)
  *  - 광고 로드 실패 / 미준비 시 조용히 skip (UX 흐름 안 끊김)
  *
  * 광고 단위 ID:
@@ -37,12 +36,8 @@ object AdManager {
             "ca-app-pub-2968584390793166/8781576983"  // 실 ID (Policy_Detail_Interstitial)
         }
 
-    private const val APP_OPEN_GRACE_MS = 30_000L          // 앱 진입 후 30초 보호
-    private const val COOLDOWN_MS = 5L * 60 * 1000         // 마지막 광고 후 5분 쿨다운
-    private const val DETAIL_VIEWS_PER_AD = 5              // 정책 상세 5번마다 시도
+    private const val DETAIL_VIEWS_PER_AD = 3              // 정책 상세 3번마다 시도
 
-    private val appStartTime = System.currentTimeMillis()
-    private var lastShownAt: Long = 0L
     @Volatile private var detailViewCounter: Int = 0
     @Volatile private var loadedAd: InterstitialAd? = null
     @Volatile private var loading: Boolean = false
@@ -85,34 +80,39 @@ object AdManager {
      */
     fun onPolicyDetailEntered(activity: Activity) {
         detailViewCounter++
-        val now = System.currentTimeMillis()
-        // 1) 앱 시작 직후 30초 보호
-        if (now - appStartTime < APP_OPEN_GRACE_MS) return
-        // 2) 마지막 광고 후 5분 쿨다운
-        if (lastShownAt > 0 && now - lastShownAt < COOLDOWN_MS) return
-        // 3) 5번에 1번 트리거
+        // 3번에 1번 트리거 (쿨다운/진입보호 없음)
         if (detailViewCounter % DETAIL_VIEWS_PER_AD != 0) return
         // 통과 — 광고 시도
         showInterstitial(activity)
     }
 
-    private fun showInterstitial(activity: Activity) {
+    /**
+     * 외부 신청 링크 클릭 시 호출. 광고를 띄우고 **닫힌 뒤** [onProceed] 실행(=링크 열기).
+     * 광고가 준비 안 됐으면 흐름을 끊지 않도록 즉시 [onProceed] 실행.
+     */
+    fun onApplyLinkClicked(activity: Activity, onProceed: () -> Unit) {
+        showInterstitial(activity, onProceed)
+    }
+
+    private fun showInterstitial(activity: Activity, onProceed: (() -> Unit)? = null) {
         val ad = loadedAd
         if (ad == null) {
             Log.i(TAG, "no ad ready — skip + preload")
             preload(activity)
+            onProceed?.invoke()  // 광고 없으면 바로 진행
             return
         }
         ad.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
                 loadedAd = null
-                lastShownAt = System.currentTimeMillis()
-                preload(activity)  // 다음 광고 미리 로드
+                preload(activity)    // 다음 광고 미리 로드
+                onProceed?.invoke()  // 광고 닫힌 뒤 진행
             }
             override fun onAdFailedToShowFullScreenContent(error: AdError) {
                 loadedAd = null
                 Log.w(TAG, "show failed: ${error.message}")
                 preload(activity)
+                onProceed?.invoke()  // 표시 실패해도 진행
             }
         }
         ad.show(activity)

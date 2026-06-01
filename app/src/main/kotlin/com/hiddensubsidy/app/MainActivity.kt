@@ -15,9 +15,22 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import android.widget.Toast
+import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import com.hiddensubsidy.app.ui.components.PrimaryCtaButton
+import com.hiddensubsidy.app.ui.theme.AppTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,6 +57,7 @@ import com.hiddensubsidy.app.notification.NotificationScheduler
 import com.hiddensubsidy.app.data.HomeAggregator
 import com.hiddensubsidy.app.data.InMemoryPolicyRepository
 import com.hiddensubsidy.app.data.PolicyRepository
+import com.hiddensubsidy.app.data.RemoteConfigRepository
 import com.hiddensubsidy.app.data.RemotePolicyRepository
 import com.hiddensubsidy.app.data.SampleData
 import com.hiddensubsidy.app.data.UserPrefs
@@ -171,6 +185,23 @@ private fun AppRoot(
         val fallback = InMemoryPolicyRepository(SampleData.allPolicies)
         CachedPolicyRepository(context, remote, fallback)
     }
+    // 강제 업데이트 — 원격 app-config.json의 minVersionCode 미만이면 차단 화면.
+    // fetch 실패/설정 없음 → forceUpdate 그대로 false (앱 정상 동작).
+    var forceUpdate by remember { mutableStateOf(false) }
+    var updateMessage by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        runCatching {
+            val cfg = RemoteConfigRepository(
+                client = httpClient,
+                url = "https://gyubam.github.io/hidemoney/app-config.json",
+            ).fetch()
+            if (com.hiddensubsidy.app.BuildConfig.VERSION_CODE < cfg.minVersionCode) {
+                updateMessage = cfg.updateMessage
+                forceUpdate = true
+            }
+        }
+    }
+
     val today = remember { java.time.LocalDate.now() }
     var allPolicies by remember { mutableStateOf(SampleData.allPolicies.withFreshDaysLeft(today)) }
     // 첫 진입 — remote refresh 끝날 때까지 home 카드들 spinner로
@@ -295,6 +326,12 @@ private fun AppRoot(
     }
 
     // 온보딩 직후 진입 시 prefs 변경분 반영 — Compose가 ProfileEdit 후 자동 재컴포지션 처리하므로 추가 동기화 불필요
+
+    // 강제 업데이트 — 다른 모든 UI보다 우선. 뒤로가기 막고 Play 스토어로만 보냄.
+    if (forceUpdate) {
+        ForceUpdateScreen(message = updateMessage)
+        return
+    }
 
     AnimatedContent(
         targetState = screen,
@@ -531,6 +568,54 @@ private fun AppRoot(
                 requestNotif()
                 showMissed = false
             },
+        )
+    }
+}
+
+/**
+ * 강제 업데이트 차단 화면. 뒤로가기 막고 Play 스토어로만 보냄. 토스 톤(흰 배경·압도적 위계).
+ */
+@Composable
+private fun ForceUpdateScreen(message: String) {
+    val context = LocalContext.current
+    val colors = AppTheme.colors
+    BackHandler(enabled = true) { /* 뒤로가기 차단 — 업데이트 전엔 못 빠져나감 */ }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .padding(28.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = "🚀", style = MaterialTheme.typography.displayMedium)
+            Spacer(Modifier.height(28.dp))
+            Text(
+                text = "업데이트가 필요해요",
+                style = MaterialTheme.typography.headlineLarge,
+                color = colors.textPrimary,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = message.ifBlank { "더 나은 지원금 추천을 위해\n최신 버전으로 업데이트해 주세요." },
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(36.dp))
+            PrimaryCtaButton(text = "지금 업데이트", onClick = { openPlayStore(context) })
+        }
+    }
+}
+
+/** Play 스토어 앱 페이지로 이동. 스토어 앱 없으면 웹으로 fallback. */
+private fun openPlayStore(context: Context) {
+    val pkg = "com.hiddensubsidy.app"  // 릴리스 패키지 (스토어 등록 ID)
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=$pkg".toUri()))
+    }.onFailure {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$pkg".toUri()),
         )
     }
 }

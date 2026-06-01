@@ -718,7 +718,18 @@ private fun StickyApplyBar(
 // 외부 URL 열기
 // =============================================================
 private fun openUrl(context: android.content.Context, url: String) {
-    runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+    val open = {
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+        }
+        Unit
+    }
+    // 외부 신청 링크 클릭 = 이탈 직전 → 전면광고 띄우고 닫힌 뒤 링크 열기.
+    // Activity 컨텍스트가 아니거나 광고 미준비면 흐름 안 끊고 바로 열기.
+    val activity = context as? android.app.Activity
+    if (activity != null) {
+        com.hiddensubsidy.app.ads.AdManager.onApplyLinkClicked(activity, open)
+    } else {
+        open()
     }
 }

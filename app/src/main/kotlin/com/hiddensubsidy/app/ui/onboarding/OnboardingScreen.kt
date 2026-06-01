@@ -57,6 +57,7 @@ import com.hiddensubsidy.app.data.model.Genders
 import com.hiddensubsidy.app.data.model.HouseholdSizes
 import com.hiddensubsidy.app.data.model.HousingTypes
 import com.hiddensubsidy.app.data.model.IncomeBrackets
+import com.hiddensubsidy.app.data.model.Districts
 import com.hiddensubsidy.app.data.model.Occupations
 import com.hiddensubsidy.app.data.model.Regions
 import com.hiddensubsidy.app.data.model.UserProfile
@@ -297,6 +298,8 @@ internal fun ProfileInputPage(
     val colors = AppTheme.colors
     var openSheet by remember { mutableStateOf<PickerSheet?>(null) }
     val ready = profile.age != null && profile.region != null
+    // 나이는 age(만 나이)로 저장하지만 입력은 출생연도로 받는다 (더 직관적).
+    val currentYear = remember { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) }
 
     Column(
         modifier = Modifier
@@ -321,11 +324,11 @@ internal fun ProfileInputPage(
             )
             Spacer(Modifier.height(28.dp))
 
-            FieldLabel("나이")
+            FieldLabel("출생연도")
             Spacer(Modifier.height(6.dp))
             PickerField(
-                value = profile.age?.let { "${it}세" },
-                placeholder = "나이 선택",
+                value = profile.age?.let { "${currentYear - it}년생" },
+                placeholder = "출생연도 선택",
                 onClick = { openSheet = PickerSheet.Age },
             )
 
@@ -338,6 +341,18 @@ internal fun ProfileInputPage(
                 placeholder = "지역 선택",
                 onClick = { openSheet = PickerSheet.Region },
             )
+
+            // 시·군·구 (선택) — 광역 선택했고 해당 광역에 시군구가 있을 때만. 우리 동네 정책 정밀 매칭.
+            if (Districts.forRegion(profile.region).isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                FieldLabel("시·군·구 (선택)")
+                Spacer(Modifier.height(6.dp))
+                PickerField(
+                    value = profile.district,
+                    placeholder = "선택하면 우리 동네 정책만",
+                    onClick = { openSheet = PickerSheet.District },
+                )
+            }
 
             Spacer(Modifier.height(20.dp))
 
@@ -504,14 +519,22 @@ internal fun ProfileInputPage(
 
     // === Bottom sheet pickers ===
     when (openSheet) {
-        PickerSheet.Age -> AgeSheet(
-            current = profile.age,
-            onPick = { onChange(profile.copy(age = it)); openSheet = null },
+        PickerSheet.Age -> BirthYearSheet(
+            currentYear = currentYear,
+            currentAge = profile.age,
+            onPick = { age -> onChange(profile.copy(age = age)); openSheet = null },
             onDismiss = { openSheet = null },
         )
         PickerSheet.Region -> RegionSheet(
             current = profile.region,
-            onPick = { onChange(profile.copy(region = it)); openSheet = null },
+            // 광역 바꾸면 이전 광역의 구는 무효 → district 리셋
+            onPick = { onChange(profile.copy(region = it, district = null)); openSheet = null },
+            onDismiss = { openSheet = null },
+        )
+        PickerSheet.District -> DistrictSheet(
+            region = profile.region,
+            current = profile.district,
+            onPick = { onChange(profile.copy(district = it)); openSheet = null },
             onDismiss = { openSheet = null },
         )
         PickerSheet.Gender -> GenderSheet(
@@ -553,7 +576,7 @@ internal fun ProfileInputPage(
     }
 }
 
-private enum class PickerSheet { Age, Region, Gender, Occupation, Income, Household, Education, Housing, ChildCount }
+private enum class PickerSheet { Age, Region, District, Gender, Occupation, Income, Household, Education, Housing, ChildCount }
 
 // =============================================================
 // 입력 필드들
@@ -813,9 +836,16 @@ private fun PageDots(
 // =============================================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AgeSheet(current: Int?, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+private fun BirthYearSheet(
+    currentYear: Int,
+    currentAge: Int?,
+    onPick: (Int) -> Unit,        // 만 나이로 변환해서 전달
+    onDismiss: () -> Unit,
+) {
     val colors = AppTheme.colors
-    val ages = (18..80).toList()
+    // 만 18~80세에 해당하는 출생연도 (최근 연도부터 위로)
+    val years = (currentYear - 18 downTo currentYear - 80).toList()
+    val selectedYear = currentAge?.let { currentYear - it }
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -823,16 +853,16 @@ private fun AgeSheet(current: Int?, onPick: (Int) -> Unit, onDismiss: () -> Unit
         containerColor = colors.background,
         dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
     ) {
-        SheetTitle("나이 선택")
+        SheetTitle("출생연도 선택")
         LazyColumn(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(0.65f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            items(ages, key = { it }) { age ->
+            items(years, key = { it }) { year ->
                 PickerRow(
-                    text = "${age}세",
-                    selected = age == current,
-                    onClick = { onPick(age) },
+                    text = "${year}년생",
+                    selected = year == selectedYear,
+                    onClick = { onPick(currentYear - year) },
                 )
             }
         }
@@ -860,6 +890,46 @@ private fun RegionSheet(current: String?, onPick: (String) -> Unit, onDismiss: (
                     text = r,
                     selected = r == current,
                     onClick = { onPick(r) },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DistrictSheet(
+    region: String?,
+    current: String?,
+    onPick: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    val districts = Districts.forRegion(region)
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+        containerColor = colors.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = colors.cardBorder) },
+    ) {
+        SheetTitle(if (region != null) "$region 시·군·구" else "시·군·구")
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.7f),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            item {
+                PickerRow(
+                    text = "전체 (구 구분 없이)",
+                    selected = current == null,
+                    onClick = { onPick(null) },
+                )
+            }
+            items(districts, key = { it }) { gu ->
+                PickerRow(
+                    text = gu,
+                    selected = gu == current,
+                    onClick = { onPick(gu) },
                 )
             }
         }

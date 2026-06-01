@@ -21,6 +21,9 @@ data class Policy(
     val applicationUrl: String? = null,               // 외부 신청 URL
     val grantType: List<String> = emptyList(),        // 지원 형태 ("현금"/"현물"/"이용권"/"현금(융자)" 등). `||` 분리된 multi-value
     val isEligible: Boolean = true,                   // 자격 충족 여부 — 동적 계산 결과
+    // === 점수 (빌드 단계 주입, docs/policies.json에 존재) ===
+    val difficultyScore: Int? = null,                 // 신청 난이도 1~10 (낮을수록 쉬움)
+    val roiScore: Int? = null,                        // ROI 점수 0~100 — 개인화 랭킹 base
     // === 자격 매칭 룰 (선언적) ===
     val eligibilityRule: EligibilityRule? = null,
 )

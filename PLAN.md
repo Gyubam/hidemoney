@@ -7,22 +7,25 @@
 
 ## 📍 다음 세션 시작 가이드 (집/다른 PC에서 이어할 때)
 
-> **마지막 작업 시점: 2026-05-18 — Play Console 출시 심사 신청 완료 🎉**
-> 빌드/기능/자산 100% 완료. **Google 심사 대기 (1~3일)**. 다음 세션은 심사 결과 확인 + 폴리시 (스크린샷 보강 / 런처 아이콘 / 사용자 피드백 반영) 작업.
+> **마지막 작업 시점: 2026-06-01 — R13 출시(1.0.0) 후 첫 업데이트(1.0.1) 빌드 완료 🚀**
+> 5/18 출시 → **정식 출시 완료**. 오늘 매칭 대개편 + 강제업데이트 기능 넣고 `versionCode 2 / 1.0.1` AAB 빌드함.
+> 다음 세션: **Play Console에 1.0.1 AAB 업로드 + 출시** / GitHub Pages `app-config.json` 반영 확인 / 광고·가입 통계 모니터링.
 > **`CLAUDE.md`에 사용자 프로필·디자인 톤·협업 규칙 다 운반함** — Claude Code가 자동 로드.
 
-### 🚦 현재 상태 (2026-05-18 22시 기준)
+### 🚦 현재 상태 (2026-06-01 기준)
 
 | 영역 | 상태 |
 |---|---|
-| **앱 빌드** | AAB 서명 빌드 완료 (`app-release.aab` 10.4 MB) |
+| **출시** | 1.0.0 정식 출시 완료. **1.0.1 AAB 빌드 완료** (`app-release.aab` 10.41 MB, versionCode 2) — 업로드 대기 |
+| **앱 빌드** | release 서명 빌드 OK. 출시 노트: "내게 맞는 추천·우리 동네 맞춤·출생연도 입력·지역 정확도" |
 | **Firebase** | Auth + Firestore + 두 패키지(debug/release) SHA-1 등록 완료 |
-| **AdMob** | 실 ID 등록 (`ca-app-pub-2968584390793166`), 전면 광고 디버그/릴리스 분기 |
-| **Play Console** | 검토 신청 완료 — Google 심사 대기 중 |
-| **GitHub Pages** | `https://gyubam.github.io/hidemoney/` 랜딩 페이지 + privacy + account-deletion + policies.json |
-| **데이터 cron** | 매일 KST 03:00 detail 풀빌드 (~5-10분) |
+| **AdMob** | 실 ID 등록. 전면 광고: 상세 **3회**마다 + **외부 신청링크 클릭 시 매번** (쿨다운/진입보호 제거) |
+| **강제 업데이트** | `docs/app-config.json`의 `minVersionCode`로 제어. 현재 `min=1`(강제 X). 올리면 그 아래 버전 차단 |
+| **매칭 엔진** | strict→**soft + 개인화 랭킹(relevanceScore)**. 보편정책 노출 + roiScore 정렬. 시·군·구 정밀 매칭 |
+| **Play Console** | 1.0.0 출시됨. 1.0.1 업로드 필요 |
+| **GitHub Pages** | 랜딩 + privacy + account-deletion + policies.json + **app-config.json(신규, push 필요)** |
+| **데이터 cron** | 매일 KST 03:00 detail 풀빌드. 정책 약 **9,939개** 축적 |
 | **신규 정책 알림** | WorkManager 24h diff baseline 동작 |
-| **출시 자산** | 아이콘 512 누끼 / 피처 그래픽 / privacy URL / 등록정보 텍스트 — 모두 업로드됨 |
 
 ### 🔐 절대 잃어버리면 안 되는 것
 

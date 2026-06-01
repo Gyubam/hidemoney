@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hiddensubsidy.app.data.PolicyRelevance
+import com.hiddensubsidy.app.data.sortedByRelevance
 import com.hiddensubsidy.app.data.model.Policy
 import com.hiddensubsidy.app.data.model.UserProfile
 import com.hiddensubsidy.app.ui.components.IconBubble
@@ -87,7 +88,7 @@ fun SearchScreen(
     val totalCount = baseFiltered.size
     val filtered = remember(baseFiltered, eligibleOnly, profile) {
         val list = if (eligibleOnly) baseFiltered.filter { PolicyRelevance.isEligibleForUser(it, profile) } else baseFiltered
-        list.sortedByDescending { it.amount }
+        list.sortedByRelevance(profile)
     }
 
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {

@@ -43,80 +43,51 @@ private fun EligibilityRule.effectiveRequiresOccupation(): List<String>? {
 }
 
 /**
- * sentinel 무시 후 의미 있는 조건이 0개면 룰 사실상 없음 — 매칭 불가로 처리.
+ * 사용자 프로필 + 정책 자격 룰 soft 매칭.
  *
- * broad sentinel 신뢰도 X 필드는 effective condition에서 제외:
- * - requiresChildren (JA0411 inject로 86% inflate)
- * - maxHouseholdSize (JA0404 sentinel 76.7%)
- * - requiresHousingType (JA0412 sentinel 79.8%)
- * - minChildCount + sensitive 5종 (JA04xx sentinel 60~80%)
- * 키워드 기반 분류는 PolicyRelevance가 처리.
- */
-private fun EligibilityRule.hasEffectiveCondition(): Boolean {
-    if (effectiveMinAge() != null) return true
-    if (effectiveMaxAge() != null) return true
-    if (regions != null) return true
-    if (effectiveRequiresOccupation() != null) return true
-    if (requiresMarried != null) return true
-    if (maxIncomeMonthly != null) return true
-    if (maxIncomePercent != null) return true
-    if (requiresEducation != null) return true
-    return false
-}
-
-/**
- * 사용자 프로필 + 정책 자격 룰 strict 매칭.
+ * "명백히 안 맞는 것만 제외" 원칙 (A: 개인화 랭킹 + B: 보편 정책 구제):
+ * - 입력된 정보로 **명백히 위반**하는 조건이 있을 때만 false (나이 초과, 확정 타지역 등)
+ * - 사용자 정보 **미입력** 조건 → 통과 (false 아님). 부적합은 PolicyRelevance 키워드/지역이 컷
+ * - 조건 없는 **보편 정책**(sentinel만) → 통과. 전국민 대상 좋은 정책이 숨지 않도록
  *
- * "정확하지 않으면 매칭 X" 원칙 (행동 유도):
- * - 룰의 어떤 조건이든 사용자 정보 부재 → false
- * - 룰 자체가 의미 없는 sentinel만 가짐 → false
- *
- * 더 많은 매칭 원하면 프로필 입력 유도 (My 탭). 모름=true는 사용자에게 거짓 임팩트.
+ * 노출 순서는 [relevanceScore]가 "내게 특화된 정책"을 위로 올려 결정.
+ * (이전 strict 버전: 정보 부재/sentinel = false. 다 입력해도 매칭 급감하던 문제로 완화.)
  */
 fun EligibilityRule.matches(profile: UserProfile): Boolean {
-    if (!hasEffectiveCondition()) return false
-
-    effectiveMinAge()?.let {
-        val age = profile.age ?: return false
-        if (age < it) return false
+    // 나이 — 입력돼 있고 명시 범위를 벗어날 때만 제외
+    profile.age?.let { age ->
+        effectiveMinAge()?.let { if (age < it) return false }
+        effectiveMaxAge()?.let { if (age > it) return false }
     }
-    effectiveMaxAge()?.let {
-        val age = profile.age ?: return false
-        if (age > it) return false
+    // 지역 — 입력돼 있고 룰의 허용 지역에 없을 때만 제외
+    profile.region?.let { region ->
+        regions?.let { allowed -> if (region !in allowed) return false }
     }
-    regions?.let { allowed ->
-        val region = profile.region ?: return false
-        if (region !in allowed) return false
+    // 직업 — 입력돼 있고 명시 직업군에 없을 때만 제외
+    profile.occupation?.let { occ ->
+        effectiveRequiresOccupation()?.let { allowed -> if (occ !in allowed) return false }
     }
-    effectiveRequiresOccupation()?.let { allowed ->
-        val occ = profile.occupation ?: return false
-        if (occ !in allowed) return false
+    // 혼인 — 입력돼 있고 요구 상태와 다를 때만 제외
+    profile.married?.let { m ->
+        requiresMarried?.let { req -> if (m != req) return false }
     }
-    requiresMarried?.let { req ->
-        val m = profile.married ?: return false
-        if (m != req) return false
+    // requiresChildren / maxHouseholdSize / requiresHousingType / sensitive 5종은
+    // 데이터 sentinel inflate(76~86%)로 신뢰도 낮아 매칭에서 무시. 키워드 기반은 PolicyRelevance에서.
+    // 소득 — 입력돼 있고 상한 초과할 때만 제외
+    profile.incomeMonthly?.let { inc ->
+        maxIncomeMonthly?.let { max -> if (inc > max) return false }
+        maxIncomePercent?.let { maxPct ->
+            val hs = (profile.householdSize ?: 1).coerceAtMost(MEDIAN_INCOME_2026.keys.max())
+            val median = MEDIAN_INCOME_2026[hs]
+            if (median != null) {
+                val userPct = (inc * 100 / median).toInt()
+                if (userPct > maxPct) return false
+            }
+        }
     }
-    // requiresChildren도 broad sentinel 가능 (JA0411 inject로 86% inflate).
-    // 매칭에서 무시. 키워드 기반은 PolicyRelevance(isChildPolicyMismatched)에서.
-    // minChildCount + sensitive 5종은 데이터 sentinel로 78%+ 활성 = 신뢰도 X.
-    // 매칭에서 무시. 키워드 기반 분류는 PolicyRelevance에서.
-    maxIncomeMonthly?.let { max ->
-        val inc = profile.incomeMonthly ?: return false
-        if (inc > max) return false
-    }
-    maxIncomePercent?.let { maxPct ->
-        val inc = profile.incomeMonthly ?: return false
-        // 가구원수 미입력 시 1인 가정 fallback — strict로 다 제외하면 정책 21.5% 사라짐
-        val hs = (profile.householdSize ?: 1).coerceAtMost(MEDIAN_INCOME_2026.keys.max())
-        val median = MEDIAN_INCOME_2026[hs] ?: return false
-        val userPct = (inc * 100 / median).toInt()
-        if (userPct > maxPct) return false
-    }
-    // maxHouseholdSize(JA0404 sentinel 76.7%) / requiresHousingType(JA0412 sentinel 79.8%)도 broad.
-    // 매칭에서 무시. 키워드 기반은 PolicyRelevance에서.
-    requiresEducation?.let { allowed ->
-        val edu = profile.education ?: return false
-        if (edu !in allowed) return false
+    // 학력 — 입력돼 있고 명시 학력군에 없을 때만 제외
+    profile.education?.let { edu ->
+        requiresEducation?.let { allowed -> if (edu !in allowed) return false }
     }
     return true
 }
@@ -133,6 +104,44 @@ fun List<Policy>.matchedWith(profile: UserProfile): List<Policy> =
 /** 자격 충족 정책만 필터. */
 fun List<Policy>.eligibleOnly(profile: UserProfile): List<Policy> =
     matchedWith(profile).filter { it.isEligible }
+
+/**
+ * 개인화 노출 점수 (높을수록 사용자에게 특화 → 위로 정렬).
+ *
+ * base = roiScore(0~100). 룰의 명시 조건이 내 프로필과 들어맞을 때마다 가점.
+ * → "내게 딱 맞는 정책"이 위로, 조건 없는 보편 정책은 roiScore만으로 아래.
+ * 금액순 정렬을 대체 (이전엔 roiScore가 정렬에 안 쓰이고 amount만 사용).
+ */
+fun Policy.relevanceScore(profile: UserProfile): Int {
+    var score = roiScore ?: 0
+    val rule = eligibilityRule ?: return score
+    // 내 지역 특화(지자체 맞춤) — 가장 강한 신호. 우리 구까지 일치하면 추가 가점
+    if (PolicyRelevance.isRegionSpecificMatch(this, profile.region)) score += 35
+    if (PolicyRelevance.isDistrictSpecificMatch(this, profile.region, profile.district)) score += 20
+    profile.region?.let { region ->
+        if (rule.regions?.contains(region) == true) score += 20
+    }
+    profile.age?.let { age ->
+        val mi = rule.effectiveMinAge()
+        val ma = rule.effectiveMaxAge()
+        if ((mi != null && age >= mi) || (ma != null && age <= ma)) score += 20
+    }
+    profile.occupation?.let { occ ->
+        if (rule.effectiveRequiresOccupation()?.contains(occ) == true) score += 15
+    }
+    profile.married?.let { m -> if (rule.requiresMarried == m) score += 10 }
+    profile.incomeMonthly?.let {
+        if (rule.maxIncomePercent != null || rule.maxIncomeMonthly != null) score += 10
+    }
+    profile.education?.let { edu ->
+        if (rule.requiresEducation?.contains(edu) == true) score += 10
+    }
+    return score
+}
+
+/** 관련도 순 정렬 (동점 시 금액 큰 순). */
+fun List<Policy>.sortedByRelevance(profile: UserProfile): List<Policy> =
+    sortedWith(compareByDescending<Policy> { it.relevanceScore(profile) }.thenByDescending { it.amount })
 
 private val ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE
 

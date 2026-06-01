@@ -1,5 +1,6 @@
 package com.hiddensubsidy.app.data
 
+import com.hiddensubsidy.app.data.model.Districts
 import com.hiddensubsidy.app.data.model.Policy
 import com.hiddensubsidy.app.data.model.UserProfile
 
@@ -32,6 +33,17 @@ object PolicyRelevance {
     private val PROVINCIAL_REGIONS = listOf(
         "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
         "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
+    )
+
+    /**
+     * 도 단위 풀네임 → 약칭. 데이터의 applicationOrg는 "충청북도"·"경상남도" 같은 풀네임을 씀.
+     * "충북"·"경남" 약칭은 풀네임의 부분문자열이 아니라(서울특별시⊃서울과 달리) 매칭 실패 →
+     * 도 정책이 "전국"으로 오인돼 전 지역에 노출되던 버그 방지. 풀네임을 먼저 검사.
+     */
+    private val FULL_NAME_REGIONS = mapOf(
+        "충청북도" to "충북", "충청남도" to "충남",
+        "경상북도" to "경북", "경상남도" to "경남",
+        "전라북도" to "전북", "전라남도" to "전남",
     )
 
     /** 시군구 → 광역 매핑. 자주 등장하는 서울/경기/광역시 중심. 점진 확장. */
@@ -115,6 +127,8 @@ object PolicyRelevance {
 
     private fun extractRegionFromOrg(org: String?): String? {
         if (org.isNullOrBlank()) return null
+        // 0) 도 단위 풀네임 우선 ("충청북도"→"충북"). 약칭이 부분문자열로 안 잡히는 케이스.
+        FULL_NAME_REGIONS.forEach { (full, short) -> if (org.contains(full)) return short }
         // 1) 광역 직접 매칭
         PROVINCIAL_REGIONS.firstOrNull { org.contains(it) }?.let { return it }
         // 2) 시군구 → 광역 매핑 (서울 25개 구 / 경기 / 일부 지방)
@@ -129,12 +143,39 @@ object PolicyRelevance {
         return LOCAL_GOV_PATTERN.containsMatchIn(org.trim())
     }
 
-    fun isRegionRelevant(policy: Policy, userRegion: String?): Boolean {
+    /** applicationOrg에서 추출한 지역이 내 지역과 정확히 일치 = 지자체 특화 매칭 (랭킹 가점용). */
+    fun isRegionSpecificMatch(policy: Policy, userRegion: String?): Boolean {
+        if (userRegion == null) return false
+        return extractRegionFromOrg(policy.applicationOrg) == userRegion
+    }
+
+    /** applicationOrg에서 해당 광역의 시군구를 추출. 없으면 null. */
+    private fun extractDistrictFromOrg(org: String?, region: String): String? {
+        if (org.isNullOrBlank()) return null
+        val districts = Districts.byRegion[region] ?: return null
+        // 긴 이름 우선 매칭 — "강서구"가 "서구"보다 먼저 잡히도록
+        return districts.sortedByDescending { it.length }.firstOrNull { org.contains(it) }
+    }
+
+    /** 내 구와 정책 명시 구가 일치 = 우리 동네 정책 (랭킹 가점용). */
+    fun isDistrictSpecificMatch(policy: Policy, userRegion: String?, userDistrict: String?): Boolean {
+        if (userRegion == null || userDistrict == null) return false
+        if (extractRegionFromOrg(policy.applicationOrg) != userRegion) return false
+        return extractDistrictFromOrg(policy.applicationOrg, userRegion) == userDistrict
+    }
+
+    fun isRegionRelevant(policy: Policy, userRegion: String?, userDistrict: String? = null): Boolean {
         val org = policy.applicationOrg
         val extractedRegion = extractRegionFromOrg(org)
         if (extractedRegion != null) {
             if (userRegion == null) return false
-            return extractedRegion == userRegion
+            if (extractedRegion != userRegion) return false
+            // 광역 일치 — 구까지 입력돼 있으면 다른 구 정책 제외 (정책에 구 명시된 경우만)
+            if (userDistrict != null) {
+                val policyDistrict = extractDistrictFromOrg(org, extractedRegion)
+                if (policyDistrict != null && policyDistrict != userDistrict) return false
+            }
+            return true
         }
         if (isLocalGovOrg(org)) return false
         return true
@@ -154,6 +195,12 @@ object PolicyRelevance {
     private val ADMIN_KEYWORDS = listOf(
         "범죄수익", "범죄피해", "환수", "압수", "벌금", "징수",
         "재소자", "출소자", "보호관찰", "교정",
+    )
+    // 세무 행정 서비스 — 세금 분쟁/상담 도움. 지원금 아니고 일반인 거의 무관.
+    // "지방세 감면"·"한옥 감면" 같은 실제 혜택은 이 키워드에 안 걸려 유지됨.
+    private val TAX_SERVICE_KEYWORDS = listOf(
+        "불복청구", "마을세무사", "과세전적부심사", "심사청구 대리", "이의신청 대리",
+        "납세자보호", "세무 상담", "세무상담",
     )
     private val VICTIM_KEYWORDS = listOf(
         "가정폭력", "성폭력", "성매매", "학교폭력", "데이트폭력", "디지털성폭력",
@@ -261,6 +308,7 @@ object PolicyRelevance {
 
         // 항상 제외 카테고리 (사용자 토글 X)
         if (ADMIN_KEYWORDS.any { text.contains(it) }) return true
+        if (TAX_SERVICE_KEYWORDS.any { text.contains(it) }) return true
         if (VICTIM_KEYWORDS.any { text.contains(it) }) return true
         if (FACILITY_KEYWORDS.any { text.contains(it) }) return true
         if (DISEASE_KEYWORDS.any { text.contains(it) }) return true
@@ -368,7 +416,7 @@ object PolicyRelevance {
         if (isSingleHouseholdMismatched(policy, profile)) return false
         if (isSeniorPolicyMismatched(policy, profile)) return false
         if (!isCategoryRelevant(policy, profile.occupation)) return false
-        if (!isRegionRelevant(policy, profile.region)) return false
+        if (!isRegionRelevant(policy, profile.region, profile.district)) return false
         if (!isGenderRelevant(policy, profile.gender)) return false
         return true
     }
