@@ -7,22 +7,25 @@
 
 ## 📍 다음 세션 시작 가이드 (집/다른 PC에서 이어할 때)
 
-> **마지막 작업 시점: 2026-06-01 — R13 출시(1.0.0) 후 첫 업데이트(1.0.1) 빌드 완료 🚀**
-> 5/18 출시 → **정식 출시 완료**. 오늘 매칭 대개편 + 강제업데이트 기능 넣고 `versionCode 2 / 1.0.1` AAB 빌드함.
-> 다음 세션: **Play Console에 1.0.1 AAB 업로드 + 출시** / GitHub Pages `app-config.json` 반영 확인 / 광고·가입 통계 모니터링.
+> **마지막 작업 시점: 2026-07-22 — Android 16(API 36) 타겟 대응 + `1.0.2` AAB 빌드 완료 🚀**
+> 5/18 정식 출시(1.0.0) → 6/1 매칭 대개편(1.0.1, **업로드 안 함**) → 7/22 Play "타겟 API 36 필수(8/31 마감)" 공지 대응.
+> 오늘 한 것: `compileSdk/targetSdk 35→36`, `AGP 8.7.3→8.9.3`, `Gradle 8.9→8.11.1`, `versionCode 3 / 1.0.2`. debug+release AAB 빌드 성공(둘 다 BUILD SUCCESSFUL, 서명·R8·lint 통과). **코드 로직 변경 0, 빌드 설정만.**
+> 다음 세션: **Play Console에 1.0.2 AAB 업로드 + 프로덕션 출시** (라이브는 여전히 1.0.0 = versionCode 1이라, 1.0.2 올리면 1.0.1 개선분까지 한꺼번에 배포됨) / 실기기 최종 확인 / 광고·가입 통계 모니터링.
+> **강제업데이트 안 하기로 결정** — `app-config.json` 그대로(`min=1`), Play 자체 업데이트만 사용. 손 안 댐.
 > **`CLAUDE.md`에 사용자 프로필·디자인 톤·협업 규칙 다 운반함** — Claude Code가 자동 로드.
 
-### 🚦 현재 상태 (2026-06-01 기준)
+### 🚦 현재 상태 (2026-07-22 기준)
 
 | 영역 | 상태 |
 |---|---|
-| **출시** | 1.0.0 정식 출시 완료. **1.0.1 AAB 빌드 완료** (`app-release.aab` 10.41 MB, versionCode 2) — 업로드 대기 |
-| **앱 빌드** | release 서명 빌드 OK. 출시 노트: "내게 맞는 추천·우리 동네 맞춤·출생연도 입력·지역 정확도" |
+| **출시** | 1.0.0 정식 출시 중(프로덕션 라이브). **1.0.2 AAB 빌드 완료** (`app-release.aab` 11 MB, versionCode 3, targetSdk 36) — 업로드 대기 |
+| **타겟 API** | ✅ **Android 16(API 36) 타겟 완료** (Play 8/31 마감 대응). AGP 8.9.3 / Gradle 8.11.1 / compileSdk 36 |
+| **앱 빌드** | release 서명 빌드 OK. 출시 노트: "개인화 추천·시군구 매칭·출생연도·안드 16 지원" |
 | **Firebase** | Auth + Firestore + 두 패키지(debug/release) SHA-1 등록 완료 |
 | **AdMob** | 실 ID 등록. 전면 광고: 상세 **3회**마다 + **외부 신청링크 클릭 시 매번** (쿨다운/진입보호 제거) |
 | **강제 업데이트** | `docs/app-config.json`의 `minVersionCode`로 제어. 현재 `min=1`(강제 X). 올리면 그 아래 버전 차단 |
 | **매칭 엔진** | strict→**soft + 개인화 랭킹(relevanceScore)**. 보편정책 노출 + roiScore 정렬. 시·군·구 정밀 매칭 |
-| **Play Console** | 1.0.0 출시됨. 1.0.1 업로드 필요 |
+| **Play Console** | 1.0.0 출시됨. **1.0.2(versionCode 3) 업로드 필요** (1.0.1은 건너뜀 — 미업로드) |
 | **GitHub Pages** | 랜딩 + privacy + account-deletion + policies.json + **app-config.json(신규, push 필요)** |
 | **데이터 cron** | 매일 KST 03:00 detail 풀빌드. 정책 약 **9,939개** 축적 |
 | **신규 정책 알림** | WorkManager 24h diff baseline 동작 |
