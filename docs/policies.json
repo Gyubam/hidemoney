@@ -18645,7 +18645,7 @@
         "deadline": "2026-10-30",
         "daysLeft": -21,
         "category": "생활",
-        "summary": "test",
+        "summary": "test{{7*7}}",
         "period": "",
         "eligibility": [
             "「주택법」제15조에 따라 사업계획승인을 받아 건설된 공동주택과 그 부대",
@@ -304278,10 +304278,10 @@
         "summary": "관내 공공임대주택(송우파인빌, 포천헤리센트)에 거주하는 청년·신혼부부에게 주거비 지원",
         "period": "",
         "eligibility": [
-            "지원대상: 아래 3가지 조건 모두 충족하는 자",
+            "지원대상: 아래 2가지 조건 모두 충족하는 자",
             "신청일 기준 청년, 신혼",
-            "신생아매입임대주택(헤리센트, 송우파인빌)의 임대차 계약을 완료하고",
-            "입주 예정(20일 전)이거나 2026년 이후에 입주한 *청년"
+            "신생아 매입임대주택Ⅰ(포천헤리센트, 송우파인빌)의 임대차계약을 완료한 *청년",
+            "**신혼부부"
         ],
         "documents": [
             {
@@ -355160,7 +355160,7 @@
     },
     {
         "id": "647000000108",
-        "title": "세자녀이상가족진료비지원(모자보건)",
+        "title": "경상북도세자녀이상가족진료비지원(모자보건)",
         "amount": 50000,
         "deadline": "",
         "category": "출산",
@@ -464210,18 +464210,18 @@
     },
     {
         "id": "560000000144",
-        "title": "포천시 청년·신혼부부 공공임대주택 주거비 지원(월 임대료)",
+        "title": "포천시 청년·신혼부부 공공임대주택 주거비 지원(월 임대료)(신규신청)",
         "amount": 100000,
-        "deadline": "2026-07-10",
-        "daysLeft": -133,
+        "deadline": "2026-12-10",
+        "daysLeft": 20,
         "category": "주거",
-        "summary": "관내 공공임대주택(송우파인빌, 포애뜰)에 거주하는 청년·신혼부부에게 주거비 지원",
+        "summary": "관내공공임대주택(송우파인빌, 행복주택)에 거주하는 청년·신혼부부에게 주거비 지원",
         "period": "",
         "eligibility": [
             "지원대상: 아래 2가지 조건 모두 충족하는 자",
-            "- 신청 공고일 기준 공공임대주택(포애뜰, 송우파인빌)에 거주하는 *청년",
-            "**신혼부부",
-            "- 신청 공고일 기준 해당 주택에 주민등록을 둔 자"
+            "- 신청 공고일 기준 공공임대주택(포애뜰",
+            "신읍동 행복주택, 송우파인빌)에 거주하는 *청년",
+            "**신혼부부"
         ],
         "documents": [
             {
@@ -476393,5 +476393,104 @@
         },
         "difficultyScore": 10,
         "roiScore": 33
+    },
+    {
+        "id": "359000000453",
+        "title": "아동치과주치의사업",
+        "amount": 0,
+        "deadline": "",
+        "category": "생활",
+        "summary": "치과의료 접근도가 낮아 구강관리에 소홀한 저소득층 초등학생을 대상으로 지속적 포괄적인 구강관리를 제공하여 구강건강 관리 능력의 향상과 구강건강 불평등 해소에 기여하여 아동의 평생 구강건강 기틀 마련",
+        "period": "",
+        "eligibility": [
+            "- 1순위 : 관내 기초수급권자 차상위계층 가정의 초등학생 중 보호자 동의가 있는 아동",
+            "- 2순위 : 관내 기준중위소득 100%이하 가정의 초등학생 중 보호자 동의가 있는 아동",
+            "- 3순위 : 관내 기준중위소득 120%이하 가정의 초등학생 중 보호자 동의가 있는 아동",
+            "* 소득기준은 변경될 수 있음"
+        ],
+        "documents": [
+            {
+                "name": "개인정보 동의서(행정정보 공동이용시스템 확인시 필요)"
+            }
+        ],
+        "procedure": [
+            "-방문 및 유선"
+        ],
+        "applicationOrg": "전남광주통합특별시 동구",
+        "applicationUrl": "https://plus.gov.kr/portal/benefitV2/benefitTotalSrvcList/benefitSrvcDtl?svcSeq=2167653&bnefType=all&svcId=359000000453",
+        "grantType": [
+            "서비스(의료)"
+        ],
+        "eligibilityRule": {
+            "minAge": 6,
+            "maxAge": 12,
+            "requiresOccupation": [
+                "학생"
+            ],
+            "requiresChildren": true,
+            "minChildCount": 2,
+            "requiresMulticultural": true,
+            "requiresDefector": true,
+            "requiresSingleParent": true,
+            "maxIncomePercent": 200,
+            "maxHouseholdSize": 1,
+            "requiresHousingType": [
+                "전세",
+                "월세",
+                "기타"
+            ]
+        },
+        "difficultyScore": 4,
+        "roiScore": 0
+    },
+    {
+        "id": "359000000472",
+        "title": "치매 치료관리비 지원",
+        "amount": 360000,
+        "deadline": "",
+        "category": "생활",
+        "summary": "치매를 조기에, 지속적으로 치료･관리함으로써 효과적으로 치매증상을 호전시키거나 \r\n증상 심화를 방지하여 노후 삶의 질 제고 및 사회경제적 비용 절감에 기여",
+        "period": "",
+        "eligibility": [],
+        "documents": [
+            {
+                "name": "지원신청서"
+            },
+            {
+                "name": "통장 사본(대상지 본인 및 가족)"
+            },
+            {
+                "name": "소득재산 조사 동의서"
+            },
+            {
+                "name": "행정정보 공동이용 사전 동의서"
+            }
+        ],
+        "procedure": [
+            "주민등록 관할 보건소"
+        ],
+        "applicationOrg": "전남광주통합특별시 동구",
+        "applicationUrl": "https://plus.gov.kr/portal/benefitV2/benefitTotalSrvcList/benefitSrvcDtl?svcSeq=2170957&bnefType=all&svcId=359000000472",
+        "grantType": [
+            "현금"
+        ],
+        "eligibilityRule": {
+            "minAge": 50,
+            "maxAge": 120,
+            "requiresChildren": true,
+            "minChildCount": 2,
+            "requiresMulticultural": true,
+            "requiresDefector": true,
+            "requiresSingleParent": true,
+            "maxIncomePercent": 200,
+            "maxHouseholdSize": 1,
+            "requiresHousingType": [
+                "전세",
+                "월세",
+                "기타"
+            ]
+        },
+        "difficultyScore": 5,
+        "roiScore": 71
     }
 ]
